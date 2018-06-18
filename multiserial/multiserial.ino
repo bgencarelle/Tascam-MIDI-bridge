@@ -1,8 +1,12 @@
+
 #define CC_CHANNEL 1
 #include <MIDI.h>
+#include <SoftwareSerialParity.h>
+
 
 //#include <SoftwareSerialParity.h>
-//SoftwareSerialParity mySerial(2, 3); // RX, TX
+SoftwareSerialParity SerialOne(2, 3); // RX, TX
+
 struct MySettings : public midi::DefaultSettings
 {
 //   static const unsigned SysExMaxSize = 128; // Accept SysEx messages up to 1024 bytes long.
@@ -21,20 +25,20 @@ MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI, MySettings);
 
 void handleStart()
 {
-      Serial1.println('P');
+      SerialOne.println('P');
 }
 void handleStop()
 {
-      Serial1.println('S');
+      SerialOne.println('S');
 }
 void handleContinue()
 {
-      Serial1.println('P');
+      SerialOne.println('P');
 }
 
 void handleSystemReset()
 {
-      Serial1.println('Z');
+      SerialOne.println('Z');
 }
    
 void handleSystemExclusive(byte *array, unsigned size)
@@ -48,41 +52,37 @@ if((array[0]==0xF0) && (array[size-1]==0xf7))
    switch (array[4]){
     
     case 0x01://F0  7F  7F  06  01  F7  stop
-    Serial1.println('S');
+    SerialOne.println('S');
     break;
     
     case 0x02://F0  7F  7F  06  02  F7 play
-    Serial1.println('P');//play
+    SerialOne.println('P');//play
     break;
     
     case 0x03://F0  7F  7F  06  03  F7 FF
-    Serial1.println('');//play
-    break;
-    
-    case 0x02://F0  7F  7F  06  02  F7 play
-    Serial1.println('P');//play
+    SerialOne.println('P');//play
     break;
 
     case 0x06://F0  7F  7F  06  06  F7  |  MMC Record Strobe
-    Serial1.println('V');
+    SerialOne.println('V');
     break;
     
     case 0x07://F0  7F  7F  06  06  F7  |  MMC Record Off
-    Serial1.println('W');
+    SerialOne.println('W');
     break;
     
     case 0x09://F0  7F  7F  06  09  F7  |  MMC Pause
-    Serial1.println('X');  
+    SerialOne.println('X');  
     break;
     
     default:
-    Serial1.print(array[0], HEX);
-    Serial1.print(array[1], HEX);
-    Serial1.print(array[2], HEX);
-    Serial1.print(array[3], HEX);
-    Serial1.print(array[4], HEX);
-    Serial1.print(array[5], HEX);
-    Serial1.println("   unknown mmc message ");
+    SerialOne.print(array[0], HEX);
+    SerialOne.print(array[1], HEX);
+    SerialOne.print(array[2], HEX);
+    SerialOne.print(array[3], HEX);
+    SerialOne.print(array[4], HEX);
+    SerialOne.print(array[5], HEX);
+    SerialOne.println("   unknown mmc message ");
  
   }
   }
@@ -100,34 +100,34 @@ if (channel == CC_CHANNEL)
     case 0x33:
     if (value == 0x00)
     {
-    Serial1.println('S');//stop
+    SerialOne.println('S');//stop
     }
     break;
     
 //    case 0x36://handled by Callback
-//    Serial1.println('P');//play
+//    SerialOne.println('P');//play
 //    break;
 
     case 0x7B://EMERGENCY STOP
-    Serial1.println('S');//stop
-    Serial1.println('Z');//stop
+    SerialOne.println('S');//stop
+    SerialOne.println('Z');//stop
     break;
     
     case 0x32: //Record Strobe
     if (value >0)
     {
-    Serial1.println('V');//record on
+    SerialOne.println('V');//record on
     }
     else 
     {
-    Serial1.println('W');//record off
+    SerialOne.println('W');//record off
     }
     break;
        
     
 //    default:
-//    Serial1.print(channel, HEX);
-//    Serial1.println("   unknown cc message ")"
+//    SerialOne.print(channel, HEX);
+//    SerialOne.println("   unknown cc message ")"
 // 
   }
  }
@@ -136,7 +136,7 @@ void handleNoteOn(byte channel, byte pitch, byte velocity)
 {
   // do something different depending on the range value:
   {
-   // Serial1.println(pitch);
+   // SerialOne.println(pitch);
     
   }
     // Do whatever you want when a note is pressed.
@@ -171,10 +171,10 @@ void setup()
     // Initiate MIDI communications, listen to all channels
     MIDI.begin(MIDI_CHANNEL_OMNI);
     
-    Serial1.begin(9600,SERIAL_8E1);
-    Serial1.println('P');
-    Serial1.println("setup complete ");
-    Serial1.println();
+    SerialOne.begin(9600,SERIAL_8E1);
+    SerialOne.println('S');
+    SerialOne.println("setup complete ");
+    SerialOne.println();
 }
 
 void loop()
