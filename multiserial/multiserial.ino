@@ -2,9 +2,6 @@
 #define CC_CHANNEL 1
 #include <MIDI.h>
 #include <SoftwareSerialParity.h>
-
-
-//#include <SoftwareSerialParity.h>
 SoftwareSerialParity SerialOne(2, 3); // RX, TX
 
 struct MySettings : public midi::DefaultSettings
@@ -104,9 +101,9 @@ if (channel == CC_CHANNEL)
     }
     break;
     
-//    case 0x36://handled by Callback
-//    SerialOne.println('P');//play
-//    break;
+    case 0x36://handled by Callback
+    SerialOne.println('P');//play
+    break;
 
     case 0x7B://EMERGENCY STOP
     SerialOne.println('S');//stop
@@ -136,7 +133,7 @@ void handleNoteOn(byte channel, byte pitch, byte velocity)
 {
   // do something different depending on the range value:
   {
-   // SerialOne.println(pitch);
+   SerialOne.println(pitch);
     
   }
     // Do whatever you want when a note is pressed.
@@ -171,7 +168,7 @@ void setup()
     // Initiate MIDI communications, listen to all channels
     MIDI.begin(MIDI_CHANNEL_OMNI);
     
-    SerialOne.begin(9600,SERIAL_8E1);
+    SerialOne.begin(9600,EVEN);
     SerialOne.println('S');
     SerialOne.println("setup complete ");
     SerialOne.println();
