@@ -1,7 +1,4 @@
-/* MTC AND LTC
- *  
- *  
- *  Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
+/*   Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
 
    The goal of this project is to create an open device that can replace the obsolete and 
    all but impossible-to-find sync devices for various Tascam tape machines.
@@ -37,11 +34,11 @@
    2018 Ben Gencarelle
 
 */
+//#define TIME_SYNC 1 //comment this out for just MIDI control over serial port
+//#define EXTERNAL_CONTROL 1 // to use for generalized control
 
 #define CC_CHANNEL 1//everything on one CC makes easier
-
 #include <MIDI.h>
-//#define TIME_SYNC 1
 #include <SoftwareSerialParity.h>// Not needed for devices with multiple UARTS
 SoftwareSerialParity SerialOne(10, 11); // RX, TX
 MIDI_CREATE_DEFAULT_INSTANCE();
@@ -339,6 +336,12 @@ void setup()
 void loop()
 {
   MIDI.read();
+  
+#if defined (TIME_SYNC)
+  {
+    timeCodeCall();
+  }
+#endif
 }
 
 

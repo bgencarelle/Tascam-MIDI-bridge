@@ -136,7 +136,18 @@ ISR(TIMER1_CAPT_vect)
     }
   }
 }
-
+void timeCodeCall()
+{
+  if(write_ltc_out)
+  {
+    if(timeCodeLTC[10]%2)//not needed for hardware serial
+    {
+      SerialOne.println(timeCodeLTC2);
+      SerialOne.println();
+    }
+    write_ltc_out =false;
+  }
+}
 void handleTimeCodeQuarterFrame(byte data)
 {
   index = data >> 4;  //extract index/packet ID
@@ -160,7 +171,7 @@ void handleTimeCodeQuarterFrame(byte data)
       dfm = 'n';
     }
     sprintf(timeCodeMTC, "MTC:%c:%.2d:%.2d:%.2d:%.2d ", dfm, h_m, m_m, s_m, f_m);
-    SerialOne.println();
+    SerialOne.println(timeCodeMTC);
     write_mtc_out = true;
   }
 }
