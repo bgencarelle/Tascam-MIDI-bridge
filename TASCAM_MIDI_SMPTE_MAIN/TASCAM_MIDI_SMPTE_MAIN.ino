@@ -1,10 +1,10 @@
 /*   Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
 
-   See the Readme.md for more details 
-   
-   The goal of this project is to create an open device that can replace the obsolete and 
+   See the Readme.md for more details
+
+   The goal of this project is to create an open device that can replace the obsolete and
    all but impossible-to-find sync devices for various Tascam tape machines.
-   
+
    Hardware roughly required:
 
    Arduino compatible microcontroller
@@ -20,38 +20,45 @@
    USB FTDI uart thing for debugging
 
   There is a pinout available in the documents, just remember to connect your transmit to the device's receive
-  and to both protect and invert the inputs from the higher and lower voltages that RS-232 uses. I had great luck with 
+  and to both protect and invert the inputs from the higher and lower voltages that RS-232 uses. I had great luck with
   the 4049s and 5v, but I am not sure if 3.3v stuff would play nice.
-  
+
    2018 Ben Gencarelle
 */
-//#define TIME_SYNC 1 //comment this out for just MIDI control over serial port
+#define TIME_SYNC 1 //comment this out for just MIDI control over serial port
 //#define EXTERNAL_CONTROL 1 // to use for generalized control
-
-#define CC_CHANNEL 1//everything on one CC makes easier
+#define MIDI_CONTROL 1
 #include <MIDI.h>
 
+#if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
+//UNO like
+#define UNO 1 //for interrupt stuff
+#define icpPin 8 // ICP input pin on arduino 
 #include <SoftwareSerialParity.h>// Not needed for devices with multiple UARTS
 SoftwareSerialParity SerialOne(10, 11); // RX, TX
 MIDI_CREATE_DEFAULT_INSTANCE();
+
+#elif (__AVR_ATmega2560__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega640__)
+//Arduino Mega like
+#define MEGA 1 //for interrupt stuff
+#define icpPin  48// ICP input pin on arduino -not needed as handled by interrupt
+#define EVEN SERIAL_8E1
+HardwareSerial & SerialOne = Serial1;
+MIDI_CREATE_DEFAULT_INSTANCE();
+
+#endif
+
 
 void setup()
 {
   SerialOne.begin(9600, EVEN);
   SerialOne.println('S');
   SerialOne.println();
-  //Midi section//
-  MIDI.setHandleNoteOn(handleNoteOn);  // Put only the name of the function
-  MIDI.setHandleNoteOff(handleNoteOff);
-  MIDI.setHandleControlChange(handleControlChange);
-  //MIDI.setHandleStop(handleStop);
-  //  MIDI.setHandleStart(handleStart);
-  //  MIDI.setHandleContinue(handleContinue);
-  //  MIDI.setHandleSystemExclusive(handleSystemExclusive);
 
-  // Initiate MIDI communications, listen to all channels
-  MIDI.begin(MIDI_CHANNEL_OMNI);
 
+#if defined (MIDI_CONTROL)
+  midiSetup();
+#endif
 
 #if defined (TIME_SYNC)
   smpteSetup();
@@ -61,13 +68,17 @@ void setup()
 
 void loop()
 {
+#if defined (MIDI_CONTROL)
   MIDI.read();
-  
+#endif
+
 #if defined (TIME_SYNC)
   {
     timeCodeCall();
   }
 #endif
+
+
 }
 
 

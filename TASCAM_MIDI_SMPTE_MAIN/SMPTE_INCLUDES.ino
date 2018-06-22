@@ -1,6 +1,16 @@
 
+
+#if defined (TIME_SYNC)
+
+#if defined UNO
+#define edgeCap TIMER1_CAPT_vect
+
+#elif defined MEGA
+#define edgeCap TIMER5_CAPT_vect
+#endif
+
 //LTC stuff borrowed from Arduino forum
-#define icpPin 8        // ICP input pin on arduino -not needed as handled by interrupt
+
 #define one_time_max          475 // these values are setup for NTSC video
 #define one_time_min          300 // PAL would be around 1000 for 0 and 500 for 1
 #define zero_time_max         875 // 80bits times 29.97 frames per sec
@@ -15,40 +25,49 @@ volatile boolean valid_tc_word;
 volatile boolean ones_bit_count;
 volatile boolean tc_sync;
 volatile boolean write_ltc_out;
-volatile boolean write_mtc_out;
 volatile boolean drop_frame_flag;
-volatile boolean drop_frame_flag_mtc;
-
 volatile byte total_bits;
 volatile bool current_bit;
 volatile byte sync_count;
 
 volatile byte tc[8];
 volatile byte timeCodeLTC[12];
-char timeCodeMTC[14];
-char timeCodeLTC2[14];
 char df = 'n';
-char dfm = 'n';
 char* flag_l;
-char* flag_m;
-int ctr = 0;
+char timeCodeLTC2[14];
+
 //MTC stuff from forum
+char timeCodeMTC[14];
+char dfm = 'n';
+char* flag_m;
+volatile boolean drop_frame_flag_mtc;
+volatile boolean write_mtc_out;
 byte h_m, m_m, s_m, f_m;      //hours, minutes, seconds, frame
 char h_l, m_l, s_l, f_l;      //hours, minutes, seconds, frame
 byte buf_temp_mtc[8];     //timecode buffer
 byte command, data, index;
 
+int ctr = 0;
 
 /* ICR interrupt vector */
-ISR(TIMER1_CAPT_vect)
+ISR(edgeCap)
 {
+
+  
+#if defined UNO
   //toggleCaptureEdge
   TCCR1B ^= _BV(ICES1);
-
   bit_time = ICR1;
-
   //resetTimer1
   TCNT1 = 0;
+  
+#elif defined MEGA
+  //toggleCaptureEdge
+  TCCR5B ^= _BV(ICES5);
+  bit_time = ICR5;
+  //resetTimer1
+  TCNT5 = 0;
+#endif
 
   if ((bit_time < one_time_min) || (bit_time > zero_time_max)) // get rid of anything way outside the norm
   {
@@ -130,24 +149,47 @@ ISR(TIMER1_CAPT_vect)
       {
         df = 'n';
       }
-      sprintf(timeCodeLTC2, "LTC:%c:%s /r", df, timeCodeLTC);
       write_ltc_out = true;
 
     }
   }
 }
-void timeCodeCall()
+
+void smpteSetup()
 {
-  if(write_ltc_out)
-  {
-    if(timeCodeLTC[10]%2)//not needed for hardware serial
-    {
-      SerialOne.println(timeCodeLTC2);
-      SerialOne.println();
-    }
-    write_ltc_out =false;
-  }
+  MIDI.setHandleTimeCodeQuarterFrame(handleTimeCodeQuarterFrame);
+  pinMode(icpPin, INPUT);                  // ICP pin (digital pin 8 on arduino uno) as input
+  bit_time = 0;
+  valid_tc_word = false;
+  ones_bit_count = false;
+  tc_sync = false;
+  write_ltc_out = false;
+  drop_frame_flag = false;
+  total_bits =  0;
+  current_bit =  0;
+  sync_count =  0;
+
+  #if defined UNO
+  attachInterrupt(1, TIMER1_CAPT_vect, CHANGE);  
+  TCCR1A = B00000000; // clear all
+  TCCR1B = B11000010; // ICNC1 noise reduction + ICES1 start on rising edge + CS11 divide by 8
+  TCCR1C = B00000000; // clear all
+  TIMSK1 = B00100000; // ICIE1 enable the icp
+  TCNT1 = 0; // clear timer1
+
+  #elif defined MEGA
+  attachInterrupt(1, TIMER5_CAPT_vect, CHANGE);  
+  TCCR5A = B00000000; // clear all
+  TCCR5B = B11000010; // ICNC1 noise reduction + ICES1 start on rising edge + CS11 divide by 8
+  TCCR5C = B00000000; // clear all
+  TIMSK5 = B00100000; // ICIE1 enable the icp
+  TCNT5 = 0; // clear timer1
+
+  #endif
+  
+  
 }
+
 void handleTimeCodeQuarterFrame(byte data)
 {
   index = data >> 4;  //extract index/packet ID
@@ -170,29 +212,27 @@ void handleTimeCodeQuarterFrame(byte data)
     {
       dfm = 'n';
     }
+
     sprintf(timeCodeMTC, "MTC:%c:%.2d:%.2d:%.2d:%.2d ", dfm, h_m, m_m, s_m, f_m);
-    SerialOne.println(timeCodeMTC);
     write_mtc_out = true;
   }
 }
-
-void smpteSetup()
+void timeCodeCall()
 {
-  MIDI.setHandleTimeCodeQuarterFrame(handleTimeCodeQuarterFrame);
-  attachInterrupt(1, TIMER1_CAPT_vect, CHANGE);
-  pinMode(icpPin, INPUT);                  // ICP pin (digital pin 8 on arduino) as input
-  bit_time = 0;
-  valid_tc_word = false;
-  ones_bit_count = false;
-  tc_sync = false;
-  write_ltc_out = false;
-  drop_frame_flag = false;
-  total_bits =  0;
-  current_bit =  0;
-  sync_count =  0;
-  TCCR1A = B00000000; // clear all
-  TCCR1B = B11000010; // ICNC1 noise reduction + ICES1 start on rising edge + CS11 divide by 8
-  TCCR1C = B00000000; // clear all
-  TIMSK1 = B00100000; // ICIE1 enable the icp
-  TCNT1 = 0; // clear timer1
+  if(write_ltc_out && write_mtc_out)
+  {
+    int sec_dif = (buf_temp_mtc[2]&0xf)-(tc[2]&0xf);
+//  if(timeCodeLTC[10]%2)//not needed for hardware serial
+    {
+      SerialOne.println("TIMECODE DIFFERENCE IN SECONDS");
+      SerialOne.println(sec_dif);
+      SerialOne.println("LTC: ");
+      SerialOne.println((char*)timeCodeLTC);
+     SerialOne.println(timeCodeMTC);
+     SerialOne.println("dgdg ");
+   }
+    write_ltc_out =false;
+    write_mtc_out =false;
+  }
 }
+#endif

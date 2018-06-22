@@ -1,6 +1,20 @@
-
+#define CC_CHANNEL 1//everything on one CC makes easier
 volatile byte lastPlayStatus = 0;//needed for record toggle
 
+
+void midiSetup(){ 
+  //Midi section//
+  MIDI.setHandleNoteOn(handleNoteOn);  // Put only the name of the function
+  MIDI.setHandleNoteOff(handleNoteOff);
+  MIDI.setHandleControlChange(handleControlChange);
+  //MIDI.setHandleStop(handleStop);
+  //  MIDI.setHandleStart(handleStart);
+  //  MIDI.setHandleContinue(handleContinue);
+  //  MIDI.setHandleSystemExclusive(handleSystemExclusive);
+
+  // Initiate MIDI communications, listen to all channels
+  MIDI.begin(MIDI_CHANNEL_OMNI);
+}
 // -----------------------------------------------------------------------------
 //MIDI callback section
 // This function will be automatically called when a MIDI message is received.
