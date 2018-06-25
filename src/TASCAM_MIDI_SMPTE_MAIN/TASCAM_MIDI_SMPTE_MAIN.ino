@@ -30,6 +30,8 @@
 #define MIDI_CONTROL 1
 #include <MIDI.h>
 
+bool chaseMode = true;
+
 #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
 //UNO like
 #define UNO 1 //for interrupt stuff
@@ -54,14 +56,12 @@ void setup()
   SerialOne.begin(9600, EVEN);
   SerialOne.println('S');
   SerialOne.println();
-
-
 #if defined (MIDI_CONTROL)
   midiSetup();
 #endif
 
 #if defined (TIME_SYNC)
-  smpteSetup();
+ smpteSetup();
 #endif
 
 }
@@ -73,6 +73,7 @@ void loop()
 #endif
 
 #if defined (TIME_SYNC)
+
   {
     timeCodeCall();
   }

@@ -1,4 +1,7 @@
 #define CC_CHANNEL 1//everything on one CC makes easier
+#define CHAN_MIN 36
+#define CHAN_MAX 45
+
 volatile byte lastPlayStatus = 0;//needed for record toggle
 
 
@@ -7,13 +10,15 @@ void midiSetup(){
   MIDI.setHandleNoteOn(handleNoteOn);  // Put only the name of the function
   MIDI.setHandleNoteOff(handleNoteOff);
   MIDI.setHandleControlChange(handleControlChange);
-  //MIDI.setHandleStop(handleStop);
-  //  MIDI.setHandleStart(handleStart);
-  //  MIDI.setHandleContinue(handleContinue);
-  //  MIDI.setHandleSystemExclusive(handleSystemExclusive);
-
-  // Initiate MIDI communications, listen to all channels
+  MIDI.setHandleProgramChange(handleProgramChange);
+  MIDI.setHandlePitchBend(handlePitchBend);
+//MIDI.setHandleStop(handleStop);
+//MIDI.setHandleStart(handleStart);
+//MIDI.setHandleContinue(handleContinue);
+//MIDI.setHandleSystemExclusive(handleSystemExclusive);
+// Initiate MIDI communications, listen to all channels
   MIDI.begin(MIDI_CHANNEL_OMNI);
+  MIDI.turnThruOff();//no need for midi thru
 }
 // -----------------------------------------------------------------------------
 //MIDI callback section
@@ -32,7 +37,6 @@ void handleControlChange(byte channel, byte number, byte value)
   {
     switch (number) {//reassign CCs as needed for your application
 
-      
       //Record toggle Track indicated - possible to poll for active tracks by
       // sending @2 and parsing the right nibble - not implemented
       // tracks 1,2,3,4 are byte 2, tracks 5,6,7,8 are byte 3
@@ -185,22 +189,33 @@ void handleControlChange(byte channel, byte number, byte value)
     lastValue = value;
   }
 }
-//void handleStart()//using CCs for now to simplify
-//{
-//  SerialOne.println('P');
-//}
-//void handleStop()
-//{
-//  SerialOne.println('S');
-//}
-//void handleContinue()
-//{
-//  SerialOne.println('P');
-//}
 
 void handleSystemReset()
 {
   SerialOne.println('Z');
+}
+
+void handleNoteOn(byte channel, byte pitch, byte velocity)
+{
+  // send note on for controlling the channels
+  if ((pitch >=CHAN_MIN) && (pitch <=CHAN_MAX) ) 
+  {
+        MIDI.sendNoteOn(pitch, velocity, channel);
+  }
+
+}
+void handleNoteOff(byte channel, byte pitch, byte velocity)
+{
+  // Note that NoteOn messages with 0 velocity are interpreted as NoteOffs.
+}
+
+void handleProgramChange(byte channel, byte number)//sends program change-"SCENES"
+{
+  MIDI.sendProgramChange(number, channel);
+}
+void handlePitchBend(byte channel, int bend)
+{
+  //coming soon
 }
 
 //Sysex MMC is a pain.  These work, but it is probably best to choose either MMC or CC
@@ -253,30 +268,18 @@ void handleSystemReset()
 //    }
 //  }
 //}
+//void handleStart()//using CCs for now to simplify
+//{
+//  SerialOne.println('P');
+//}
+//void handleStop()
+//{
+//  SerialOne.println('S');
+//}
+//void handleContinue()
+//{
+//  SerialOne.println('P');
+//}
 
-
-
-void handleNoteOn(byte channel, byte pitch, byte velocity)
-{
-  // do something different depending on the range value:
-  {
-
-  }
-  // Do whatever you want when a note is pressed.
-
-  // Try to keep your callbacks short (no delays ect)
-  // otherwise it would slow down the loop() and have a bad impact
-  // on real-time performance.
-
-}
-void handleNoteOff(byte channel, byte pitch, byte velocity)
-{
-  // Do something when the note is released.
-  // Note that NoteOn messages with 0 velocity are interpreted as NoteOffs.
-}
-
-// -----------------------------------------------------------------------------
-
-//
 
 

@@ -31,11 +31,9 @@ volatile bool current_bit;
 volatile byte sync_count;
 
 volatile byte tc[8];
-volatile byte timeCodeLTC[12];
+volatile byte timeCodeLTC[11];
 char df = 'n';
 char* flag_l;
-char timeCodeLTC2[14];
-
 //MTC stuff from forum
 char timeCodeMTC[14];
 char dfm = 'n';
@@ -53,14 +51,14 @@ int ctr = 0;
 ISR(edgeCap)
 {
 
-  
+
 #if defined UNO
   //toggleCaptureEdge
   TCCR1B ^= _BV(ICES1);
   bit_time = ICR1;
   //resetTimer1
   TCNT1 = 0;
-  
+
 #elif defined MEGA
   //toggleCaptureEdge
   TCCR5B ^= _BV(ICES5);
@@ -169,25 +167,24 @@ void smpteSetup()
   current_bit =  0;
   sync_count =  0;
 
-  #if defined UNO
-  attachInterrupt(1, TIMER1_CAPT_vect, CHANGE);  
+#if defined UNO
+  attachInterrupt(1, TIMER1_CAPT_vect, CHANGE);
   TCCR1A = B00000000; // clear all
   TCCR1B = B11000010; // ICNC1 noise reduction + ICES1 start on rising edge + CS11 divide by 8
   TCCR1C = B00000000; // clear all
   TIMSK1 = B00100000; // ICIE1 enable the icp
   TCNT1 = 0; // clear timer1
 
-  #elif defined MEGA
-  attachInterrupt(1, TIMER5_CAPT_vect, CHANGE);  
+#elif defined MEGA
+  attachInterrupt(1, TIMER5_CAPT_vect, CHANGE);
   TCCR5A = B00000000; // clear all
   TCCR5B = B11000010; // ICNC1 noise reduction + ICES1 start on rising edge + CS11 divide by 8
   TCCR5C = B00000000; // clear all
   TIMSK5 = B00100000; // ICIE1 enable the icp
   TCNT5 = 0; // clear timer1
 
-  #endif
-  
-  
+#endif
+
 }
 
 void handleTimeCodeQuarterFrame(byte data)
@@ -203,7 +200,6 @@ void handleTimeCodeQuarterFrame(byte data)
     f_m = byte(buf_temp_mtc[1] << 4) + buf_temp_mtc[0];
 
     drop_frame_flag_mtc = (buf_temp_mtc[1] & 0x04) != 0;
-
     if (drop_frame_flag_mtc)
     {
       dfm = 'd';
@@ -212,27 +208,84 @@ void handleTimeCodeQuarterFrame(byte data)
     {
       dfm = 'n';
     }
-
-    sprintf(timeCodeMTC, "MTC:%c:%.2d:%.2d:%.2d:%.2d ", dfm, h_m, m_m, s_m, f_m);
     write_mtc_out = true;
   }
 }
 void timeCodeCall()
 {
-  if(write_ltc_out && write_mtc_out)
+char value [8] = {'f','F','s','S','m','M','h','H'};
+  if (write_mtc_out && write_ltc_out)
   {
-    int sec_dif = (buf_temp_mtc[2]&0xf)-(tc[2]&0xf);
-//  if(timeCodeLTC[10]%2)//not needed for hardware serial
-    {
-      SerialOne.println("TIMECODE DIFFERENCE IN SECONDS");
-      SerialOne.println(sec_dif);
-      SerialOne.println("LTC: ");
-      SerialOne.println((char*)timeCodeLTC);
-     SerialOne.println(timeCodeMTC);
-     SerialOne.println("dgdg ");
-   }
-    write_ltc_out =false;
-    write_mtc_out =false;
+    
+    SerialOne.println('S'); 
+    sprintf(timeCodeMTC, "MTC:%c:%.2d:%.2d:%.2d:%.2d ", dfm, h_m, m_m, s_m, f_m);
+    
+    SerialOne.println(timeCodeMTC);
+    
+     SerialOne.println((char*)timeCodeLTC);
+    
+     
+    write_ltc_out = false;
+    write_mtc_out = false;
+  
+//
+//      /// Hour config
+//      if (ltcHours < mtcHours)
+//      {
+//        hourSync = 0;
+//      }
+//      else if (ltcHours == mtcHours)
+//      {
+//        hourSync = 1;
+//      }
+//      else if (ltcHours > mtcHours)
+//      {
+//        hourSync = 2;
+//      }
+//
+//      ////Minute config
+//      if (ltcMinutes < mtcMinutes)
+//      {
+//        minSync = 0;
+//      }
+//      if (ltcMinutes == mtcMinutes)
+//      {
+//        minSync = 1;
+//      }
+//      if (ltcMinutes > mtcMinutes)
+//      {
+//        minSync = 2;
+//      }
+//
+//      ////Second config
+//      if (ltcSeconds < mtcSeconds)
+//      {
+//        secSync = 0;
+//      }
+//      if (ltcSeconds == mtcSeconds)
+//      {
+//        secSync = 1;
+//      }
+//      if (ltcSeconds > mtcMinutes)
+//      {
+//        secSync = 2;
+//      }
+//
+//      ////frames config
+//      if (ltcFrames < mtcFrames)
+//      {
+//        frameSync = 0;
+//      }
+//      if (ltcFrames == mtcFrames)
+//      {
+//        frameSync = 1;
+//      }
+//      if (ltcFrames > mtcFrames)
+//      {
+//        frameSync = 2;
+//      }
+//    }
+
   }
 }
 #endif
