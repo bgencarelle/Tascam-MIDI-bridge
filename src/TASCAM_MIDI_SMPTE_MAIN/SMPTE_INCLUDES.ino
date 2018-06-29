@@ -24,25 +24,28 @@ volatile unsigned int bit_time;
 volatile boolean valid_tc_word;
 volatile boolean ones_bit_count;
 volatile boolean tc_sync;
-volatile boolean write_ltc_out;
-volatile boolean drop_frame_flag;
 volatile byte total_bits;
 volatile bool current_bit;
 volatile byte sync_count;
 
-volatile byte tc[8];
-volatile byte timeCodeLTC[11];
-char df = 'n';
 char* flag_l;
+char* flag_m;
 //MTC stuff from forum
 char timeCodeMTC[14];
-char dfm = 'n';
-char* flag_m;
-volatile boolean drop_frame_flag_mtc;
+char timeCodeLTC2[14];
+volatile byte timeCodeLTC[14];
+volatile boolean write_ltc_out;
 volatile boolean write_mtc_out;
+volatile boolean drop_frame_flag_ltc;
+volatile boolean drop_frame_flag_mtc;
+char dfm = 'n';
+char dfl = 'n';
 byte h_m, m_m, s_m, f_m;      //hours, minutes, seconds, frame
-char h_l, m_l, s_l, f_l;      //hours, minutes, seconds, frame
-byte buf_temp_mtc[8];     //timecode buffer
+byte h_l, m_l, s_l, f_l;      //hours, minutes, seconds, frame
+
+
+volatile byte tc[8];
+volatile byte buf_temp_mtc[8];     //timecode buffer
 byte command, data, index;
 
 int ctr = 0;
@@ -125,30 +128,34 @@ ISR(edgeCap)
 
     if (valid_tc_word)
     {
+   
       valid_tc_word = false;
-      timeCodeLTC[10] = (tc[0] & 0x0F) + 0x30;  // frames
-      timeCodeLTC[9] = (tc[1] & 0x03) + 0x30;  // 10's of frames
+      timeCodeLTC[10] = (tc[0] & 0x0F)+'0';  // frames
+      timeCodeLTC[9] = (tc[1] & 0x03)+'0';  // 10's of frames
       timeCodeLTC[8] =  '.';
-      timeCodeLTC[7] = (tc[2] & 0x0F) + 0x30;  // seconds
-      timeCodeLTC[6] = (tc[3] & 0x07) + 0x30;  // 10's of seconds
+      timeCodeLTC[7] = (tc[2] & 0x0F)+'0';  // seconds
+      timeCodeLTC[6] = (tc[3] & 0x07)+'0';  // 10's of seconds
       timeCodeLTC[5] =  ':';
-      timeCodeLTC[4] = (tc[4] & 0x0F) + 0x30;  // minutes
-      timeCodeLTC[3] = (tc[5] & 0x07) + 0x30;  // 10's of minutes
+      timeCodeLTC[4] = (tc[4] & 0x0F)+'0';  // minutes
+      timeCodeLTC[3] = (tc[5] & 0x07)+'0';  // 10's of minutes
       timeCodeLTC[2] = ':';
-      timeCodeLTC[1] = (tc[6] & 0x0F) + 0x30;  // hours
-      timeCodeLTC[0] = (tc[7] & 0x03) + 0x30;  // 10's of hours
-      drop_frame_flag = (tc[1] & 0x04) != 0;
-
-      if (drop_frame_flag)
+      timeCodeLTC[1] = (tc[6] & 0x0F)+'0';  // hours
+      timeCodeLTC[0] = (tc[7] & 0x03)+'0';  // 10's of hours
+      drop_frame_flag_ltc = (tc[1] & 0x04) != 0;
+      
+      s_l = (tc[2]&0x0F);
+      m_l = (tc[3]&0x07);
+      
+      
+      if (drop_frame_flag_ltc)
       {
-        df = 'd';
+        dfl = 'd';
       }
       else
       {
-        df = 'n';
+        dfl = 'n';
       }
       write_ltc_out = true;
-
     }
   }
 }
@@ -156,13 +163,13 @@ ISR(edgeCap)
 void smpteSetup()
 {
   MIDI.setHandleTimeCodeQuarterFrame(handleTimeCodeQuarterFrame);
-  pinMode(icpPin, INPUT);                  // ICP pin (digital pin 8 on arduino uno) as input
+  pinMode(icpPin, INPUT);// ICP pin (digital pin 8 on arduino uno) as input
   bit_time = 0;
   valid_tc_word = false;
   ones_bit_count = false;
   tc_sync = false;
   write_ltc_out = false;
-  drop_frame_flag = false;
+  drop_frame_flag_ltc = false;
   total_bits =  0;
   current_bit =  0;
   sync_count =  0;
@@ -198,6 +205,7 @@ void handleTimeCodeQuarterFrame(byte data)
     m_m = byte(buf_temp_mtc[5] << 4) + buf_temp_mtc[4];
     s_m = byte(buf_temp_mtc[3] << 4) + buf_temp_mtc[2];
     f_m = byte(buf_temp_mtc[1] << 4) + buf_temp_mtc[0];
+    h_l = (buf_temp_mtc[3]&0x3);
 
     drop_frame_flag_mtc = (buf_temp_mtc[1] & 0x04) != 0;
     if (drop_frame_flag_mtc)
@@ -213,79 +221,18 @@ void handleTimeCodeQuarterFrame(byte data)
 }
 void timeCodeCall()
 {
-char value [8] = {'f','F','s','S','m','M','h','H'};
-  if (write_mtc_out && write_ltc_out)
-  {
-    
+  if (write_ltc_out)
+  {    
     SerialOne.println('S'); 
-    sprintf(timeCodeMTC, "MTC:%c:%.2d:%.2d:%.2d:%.2d ", dfm, h_m, m_m, s_m, f_m);
-    
-    SerialOne.println(timeCodeMTC);
-    
-     SerialOne.println((char*)timeCodeLTC);
-    
-     
+    SerialOne.print(m_l);
+    SerialOne.println(s_l);
+    SerialOne.print(h_l);
+    SerialOne.println(f_l,BIN);
+    SerialOne.println((char*)timeCodeLTC);
+ 
     write_ltc_out = false;
     write_mtc_out = false;
-  
-//
-//      /// Hour config
-//      if (ltcHours < mtcHours)
-//      {
-//        hourSync = 0;
-//      }
-//      else if (ltcHours == mtcHours)
-//      {
-//        hourSync = 1;
-//      }
-//      else if (ltcHours > mtcHours)
-//      {
-//        hourSync = 2;
-//      }
-//
-//      ////Minute config
-//      if (ltcMinutes < mtcMinutes)
-//      {
-//        minSync = 0;
-//      }
-//      if (ltcMinutes == mtcMinutes)
-//      {
-//        minSync = 1;
-//      }
-//      if (ltcMinutes > mtcMinutes)
-//      {
-//        minSync = 2;
-//      }
-//
-//      ////Second config
-//      if (ltcSeconds < mtcSeconds)
-//      {
-//        secSync = 0;
-//      }
-//      if (ltcSeconds == mtcSeconds)
-//      {
-//        secSync = 1;
-//      }
-//      if (ltcSeconds > mtcMinutes)
-//      {
-//        secSync = 2;
-//      }
-//
-//      ////frames config
-//      if (ltcFrames < mtcFrames)
-//      {
-//        frameSync = 0;
-//      }
-//      if (ltcFrames == mtcFrames)
-//      {
-//        frameSync = 1;
-//      }
-//      if (ltcFrames > mtcFrames)
-//      {
-//        frameSync = 2;
-//      }
-//    }
-
   }
 }
 #endif
+

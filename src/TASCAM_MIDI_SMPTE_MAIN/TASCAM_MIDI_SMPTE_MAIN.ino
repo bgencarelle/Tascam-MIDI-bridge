@@ -1,7 +1,5 @@
 /*   Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
 
-   See the Readme.md for more details
-
    The goal of this project is to create an open device that can replace the obsolete and
    all but impossible-to-find sync devices for various Tascam tape machines.
 
@@ -23,6 +21,7 @@
   and to both protect and invert the inputs from the higher and lower voltages that RS-232 uses. I had great luck with
   the 4049s and 5v, but I am not sure if 3.3v stuff would play nice.
 
+  See the Readme.md for more details
    2018 Ben Gencarelle
 */
 #define TIME_SYNC 1 //comment this out for just MIDI control over serial port
@@ -81,6 +80,7 @@ void loop()
 
 
 }
+
 
 
 
