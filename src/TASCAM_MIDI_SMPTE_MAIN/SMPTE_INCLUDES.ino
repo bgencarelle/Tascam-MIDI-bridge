@@ -1,153 +1,136 @@
-
-
 #if defined (TIME_SYNC)
 
 #if defined UNO
 #define edgeCap TIMER1_CAPT_vect
-
 #elif defined MEGA
 #define edgeCap TIMER5_CAPT_vect
 #endif
 
+#if defined (Tas644) ||defined(Tas688)
+#define TC_MAX 900 //largest sized timecode (15minutes *60 seconds in a minute)
+int tcOffset = -21;
+#endif
+
 //LTC stuff borrowed from Arduino forum
 
-#define one_time_max          475 // these values are setup for NTSC video
-#define one_time_min          300 // PAL would be around 1000 for 0 and 500 for 1
-#define zero_time_max         875 // 80bits times 29.97 frames per sec
-#define zero_time_min         700 // equals 833 (divide by 8 clock pulses)
+int pushButtonD4 = 4;
+int pushButtonD3 = 3;
+#define oneTimeMax          475 // these values are setup for NTSC video
+#define oneTimeMin          300 // PAL would be around 1000 for 0 and 500 for 1
+#define zeroTimeMax         875 // 80bits times 29.97 frames per sec
+#define zeroTimeMin         700 // equals 833 (divide by 8 clock pulses)
 
-#define end_data_position      63
-#define end_sync_position      77
-#define end_smpte_position     80
+#define endDataPosition      63
+#define endSyncPosition      77
+#define endSmptePosition     80
 
-volatile unsigned int bit_time;
-volatile boolean valid_tc_word;
-volatile boolean ones_bit_count;
-volatile boolean tc_sync;
-volatile byte total_bits;
-volatile bool current_bit;
-volatile byte sync_count;
+volatile unsigned int bitTime;
+volatile bool validTcWord=false;
+volatile bool onesBitCount=false;
+volatile bool tcSync;
+volatile byte totalBits;
+volatile bool currentBit;
+volatile byte syncCount;
 
-char* flag_l;
-char* flag_m;
+char* flagLTC;
+char* flagMTC;
 //MTC stuff from forum
 char timeCodeMTC[14];
 char timeCodeLTC2[14];
 volatile byte timeCodeLTC[14];
-volatile boolean write_ltc_out;
-volatile boolean write_mtc_out;
-volatile boolean drop_frame_flag_ltc;
-volatile boolean drop_frame_flag_mtc;
+volatile bool writeLTCOut;
+volatile bool writeMTCOut;
+volatile bool dropFrameFlagLTC;
+volatile bool dropFrameFlagMTC;
 char dfm = 'n';
 char dfl = 'n';
-byte h_m, m_m, s_m, f_m;      //hours, minutes, seconds, frame
-byte h_l, m_l, s_l, f_l;      //hours, minutes, seconds, frame
+byte hoursMTC, minutesMTC, secondsMTC, framesMTC;      //hours, minutes, seconds, frame
+byte hoursLTC, minutesLTC, secondsLTC, framesLTC;      //hours, minutes, seconds, frame
+int MTCWord = 0;
+int LTCWord = 0;
 
-
-volatile byte tc[8];
-volatile byte buf_temp_mtc[8];     //timecode buffer
+volatile byte bufferLTC[8];
+volatile byte bufferMTC[8];     //timecode buffer
 byte command, data, index;
-
 int ctr = 0;
 
 /* ICR interrupt vector */
 ISR(edgeCap)
 {
-
-
 #if defined UNO
   //toggleCaptureEdge
   TCCR1B ^= _BV(ICES1);
-  bit_time = ICR1;
+  bitTime = ICR1;
   //resetTimer1
   TCNT1 = 0;
-
 #elif defined MEGA
   //toggleCaptureEdge
   TCCR5B ^= _BV(ICES5);
-  bit_time = ICR5;
+  bitTime = ICR5;
   //resetTimer1
   TCNT5 = 0;
 #endif
 
-  if ((bit_time < one_time_min) || (bit_time > zero_time_max)) // get rid of anything way outside the norm
+  if ((bitTime < oneTimeMin) || (bitTime > zeroTimeMax)) // get rid of anything way outside the norm
   {
-    total_bits = 0;
+    totalBits = 0;
   }
   else
   {
-    if (ones_bit_count == true) // only count the second ones pluse
-      ones_bit_count = false;
+    if (onesBitCount == true) // only count the second ones pluse
+      onesBitCount = false;
     else
     {
-      if (bit_time > zero_time_min)
+      if (bitTime > zeroTimeMin)
       {
-        current_bit = 0;
-        sync_count = 0;
+        currentBit = 0;
+        syncCount = 0;
       }
-      else if (bit_time < one_time_max)
+      else if (bitTime < oneTimeMax)
       {
-        ones_bit_count = true;
-        current_bit = 1;
-        sync_count++;
-        if (sync_count == 12) // part of the last two bytes of a timecode word
+        onesBitCount = true;
+        currentBit = 1;
+        syncCount++;
+        if (syncCount == 12) // part of the last two bytes of a timecode word
         {
-          sync_count = 0;
-          tc_sync = true;
-          total_bits = end_sync_position;
+          syncCount = 0;
+          tcSync = true;
+          totalBits = endSyncPosition;
         }
       }
 
-      if (total_bits <= end_data_position) // timecode runs least to most so we need
+      if (totalBits <= endDataPosition) // timecode runs least to most so we need
       { // to shift things around
-        tc[0] = tc[0] >> 1;
+        bufferLTC[0] = bufferLTC[0] >> 1;
 
         for (int n = 1; n < 8; n++)
         {
-          if (tc[n] & 1)
-            tc[n - 1] |= 0x80;
+          if (bufferLTC[n] & 1)
+            bufferLTC[n - 1] |= 0x80;
 
-          tc[n] = tc[n] >> 1;
+          bufferLTC[n] = bufferLTC[n] >> 1;
         }
 
-        if (current_bit == 1)
-          tc[7] |= 0x80;
+        if (currentBit == 1)
+          bufferLTC[7] |= 0x80;
       }
-      total_bits++;
+      totalBits++;
     }
 
-    if (total_bits == end_smpte_position) // we have the 80th bit
+    if (totalBits == endSmptePosition) // we have the 80th bit
     {
-      total_bits = 0;
-      if (tc_sync)
+      totalBits = 0;
+      if (tcSync)
       {
-        tc_sync = false;
-        valid_tc_word = true;
+        tcSync = false;
+        validTcWord = true;
       }
     }
-
-    if (valid_tc_word)
+    if (validTcWord)
     {
-   
-      valid_tc_word = false;
-      timeCodeLTC[10] = (tc[0] & 0x0F)+'0';  // frames
-      timeCodeLTC[9] = (tc[1] & 0x03)+'0';  // 10's of frames
-      timeCodeLTC[8] =  '.';
-      timeCodeLTC[7] = (tc[2] & 0x0F)+'0';  // seconds
-      timeCodeLTC[6] = (tc[3] & 0x07)+'0';  // 10's of seconds
-      timeCodeLTC[5] =  ':';
-      timeCodeLTC[4] = (tc[4] & 0x0F)+'0';  // minutes
-      timeCodeLTC[3] = (tc[5] & 0x07)+'0';  // 10's of minutes
-      timeCodeLTC[2] = ':';
-      timeCodeLTC[1] = (tc[6] & 0x0F)+'0';  // hours
-      timeCodeLTC[0] = (tc[7] & 0x03)+'0';  // 10's of hours
-      drop_frame_flag_ltc = (tc[1] & 0x04) != 0;
-      
-      s_l = (tc[2]&0x0F);
-      m_l = (tc[3]&0x07);
-      
-      
-      if (drop_frame_flag_ltc)
+      validTcWord = false;
+      dropFrameFlagLTC = (bufferLTC[1] & 0x04) != 0;
+      if (dropFrameFlagLTC)
       {
         dfl = 'd';
       }
@@ -155,7 +138,12 @@ ISR(edgeCap)
       {
         dfl = 'n';
       }
-      write_ltc_out = true;
+      framesLTC = (((bufferLTC[1] & 0x07) * 10) + (bufferLTC[0] & 0x0F));
+      secondsLTC = (((bufferLTC[3] & 0x07) * 10) + (bufferLTC[2] & 0x0F));
+      minutesLTC = (((bufferLTC[5] & 0x07) * 10) + (bufferLTC[4] & 0x0F));
+      hoursLTC = (((bufferLTC[7] & 0x07) * 10) + (bufferLTC[6] & 0x0F));
+      LTCWord = (hoursLTC * 3600) + (minutesLTC * 60) + secondsLTC;
+      writeLTCOut = true;
     }
   }
 }
@@ -164,15 +152,12 @@ void smpteSetup()
 {
   MIDI.setHandleTimeCodeQuarterFrame(handleTimeCodeQuarterFrame);
   pinMode(icpPin, INPUT);// ICP pin (digital pin 8 on arduino uno) as input
-  bit_time = 0;
-  valid_tc_word = false;
-  ones_bit_count = false;
-  tc_sync = false;
-  write_ltc_out = false;
-  drop_frame_flag_ltc = false;
-  total_bits =  0;
-  current_bit =  0;
-  sync_count =  0;
+  pinMode(pushButtonD4, INPUT_PULLUP);
+  pinMode(pushButtonD3, INPUT_PULLUP);
+  bitTime = 0;
+  totalBits =  0;
+  currentBit =  0;
+  syncCount =  0;
 
 #if defined UNO
   attachInterrupt(1, TIMER1_CAPT_vect, CHANGE);
@@ -181,7 +166,6 @@ void smpteSetup()
   TCCR1C = B00000000; // clear all
   TIMSK1 = B00100000; // ICIE1 enable the icp
   TCNT1 = 0; // clear timer1
-
 #elif defined MEGA
   attachInterrupt(1, TIMER5_CAPT_vect, CHANGE);
   TCCR5A = B00000000; // clear all
@@ -189,26 +173,25 @@ void smpteSetup()
   TCCR5C = B00000000; // clear all
   TIMSK5 = B00100000; // ICIE1 enable the icp
   TCNT5 = 0; // clear timer1
-
 #endif
-
 }
 
 void handleTimeCodeQuarterFrame(byte data)
 {
   index = data >> 4;  //extract index/packet ID
   data &= 0x0F;       //clear packet ID from data
-  buf_temp_mtc[index] = data;
+  bufferMTC[index] = data;
 
-  if (index >= 0x07) {  //recalculate timecode once FRAMES LSB quarter-frame received
-    h_m = byte((buf_temp_mtc[7] & 0x01) << 4) + buf_temp_mtc[6];
-    m_m = byte(buf_temp_mtc[5] << 4) + buf_temp_mtc[4];
-    s_m = byte(buf_temp_mtc[3] << 4) + buf_temp_mtc[2];
-    f_m = byte(buf_temp_mtc[1] << 4) + buf_temp_mtc[0];
-    h_l = (buf_temp_mtc[3]&0x3);
+  if (index >= 0x07)
+  { //recalculate timecode once FRAMES LSB quarter-frame received
+    hoursMTC = ((bufferMTC[7] & 0x01) << 4) + bufferMTC[6];//we will only look at 0 or 1 hour
+    minutesMTC = (bufferMTC[5] << 4) + bufferMTC[4];
+    secondsMTC = (bufferMTC[3] << 4) + bufferMTC[2];
+    framesMTC = (bufferMTC[1] << 4) + bufferMTC[0];
+    MTCWord = (hoursMTC * 3600) + (minutesMTC * 60) + secondsMTC;
 
-    drop_frame_flag_mtc = (buf_temp_mtc[1] & 0x04) != 0;
-    if (drop_frame_flag_mtc)
+    dropFrameFlagMTC = (bufferMTC[1] & 0x04) != 0;
+    if (dropFrameFlagMTC)
     {
       dfm = 'd';
     }
@@ -216,23 +199,82 @@ void handleTimeCodeQuarterFrame(byte data)
     {
       dfm = 'n';
     }
-    write_mtc_out = true;
+    writeMTCOut = true;
   }
 }
 void timeCodeCall()
 {
-  if (write_ltc_out)
-  {    
-    SerialOne.println('S'); 
-    SerialOne.print(m_l);
-    SerialOne.println(s_l);
-    SerialOne.print(h_l);
-    SerialOne.println(f_l,BIN);
-    SerialOne.println((char*)timeCodeLTC);
- 
-    write_ltc_out = false;
-    write_mtc_out = false;
+  bool chase;
+  if (!digitalRead(pushButtonD4))
+  {
+    SerialOne.println('P');
   }
+  if (!digitalRead(pushButtonD3))
+  {
+    SerialOne.println('S');
+  }
+
+  if (writeLTCOut && writeMTCOut)
+  {
+    chase = chaseSync();
+    if (chase)
+     {
+      SerialOne.println("success");
+     }  
+    
+  }
+}
+
+bool chaseSync()
+{
+  bool returnVal = false;
+  int frameCompare = framesLTC - framesMTC;
+  int wordCompare = LTCWord - MTCWord;
+  unsigned int wordCompareDelay = abs(wordCompare)<<6;
+  writeLTCOut = false;
+  writeMTCOut = false;
+  if (MTCWord >= TC_MAX+tcOffset)
+  {
+    SerialOne.print('Z'); //return to zero
+    SerialOne.println('P');
+  }
+  
+  else if (wordCompare > 20)//LTC is leading
+  {
+    SerialOne.println(wordCompare);
+    SerialOne.println('R');
+    delay(wordCompareDelay);
+    SerialOne.println('P');
+    SerialOne.print("LTC: ");
+    SerialOne.println(LTCWord,DEC);
+    SerialOne.print("MTC: ");
+    SerialOne.println(MTCWord,DEC);
+    returnVal = false;
+  }
+
+  else if (wordCompare < 0)//LTC is following
+  {
+    SerialOne.println(wordCompare);
+    SerialOne.println('Q');
+    delay(wordCompareDelay);
+    SerialOne.println('P');
+    SerialOne.print("LTC: ");
+    SerialOne.println(LTCWord,DEC);
+    SerialOne.print("MTC: ");
+    SerialOne.println(MTCWord,DEC);
+    wordCompareDelay = abs(wordCompare)<<6;
+    returnVal = false;
+  }
+  else //if (wordCompare ==0)
+  {
+    SerialOne.print("LTC: ");
+    SerialOne.println(LTCWord,DEC);
+    SerialOne.print("MTC: ");
+    SerialOne.println(MTCWord,DEC);
+    wordCompareDelay = abs(wordCompare)<<6;
+    returnVal = true;
+  }
+  return returnVal;
 }
 #endif
 

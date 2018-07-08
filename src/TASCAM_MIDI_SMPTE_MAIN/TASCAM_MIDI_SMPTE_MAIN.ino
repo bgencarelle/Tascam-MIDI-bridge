@@ -34,7 +34,7 @@ bool chaseMode = true;
 #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
 //UNO like
 #define UNO 1 //for interrupt stuff
-#define icpPin 8 // ICP input pin on arduino 
+#define icpPin 8 // ICP input pin on arduino
 #include <SoftwareSerialParity.h>// Not needed for devices with multiple UARTS
 SoftwareSerialParity SerialOne(10, 11); // RX, TX
 MIDI_CREATE_DEFAULT_INSTANCE();
@@ -80,7 +80,4 @@ void loop()
 
 
 }
-
-
-
 

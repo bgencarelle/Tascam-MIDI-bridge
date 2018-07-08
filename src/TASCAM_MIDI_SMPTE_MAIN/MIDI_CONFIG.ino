@@ -1,5 +1,5 @@
-#define Tas688 1 //default 
-//define Tas644 1
+//#define Tas644 1
+#define Tas688
 #define CC_CHANNEL 16//everything on one CC makes easier
 #define CHAN_MIN 36
 #define CHAN_MAX 45
@@ -27,6 +27,7 @@
 #define RTZero 0x37
 #define EMGStop 0x7b
 //end of defines
+
 volatile byte lastPlayStatus = 0;//needed for record toggle, global for reasons
 
 void midiSetup() {
@@ -108,7 +109,6 @@ void handleControlChange(byte channel, byte number, byte value)
           SerialOne.println('W');//record off-does not work from pause
         }
         break;
-
       //Record toggle Track indicated - possible to poll for active tracks by
       // sending @2 and parsing the right nibble - not implemented
       // tracks 1,2,3,4 are byte 2, tracks 5,6,7,8 are byte 3
@@ -127,13 +127,14 @@ void handleControlChange(byte channel, byte number, byte value)
           SerialOne.println("C3");//record on
         }
         break;
-#if !defined (Tas644) ||  !defined(TIME_SYNC) //sync Track is 4th track
+#if (defined (Tas644)&&defined(TIME_SYNC)) //sync Track is 4th track
       case RecTog4:
         {
           SerialOne.println("C4");//record on
         }
         break;
 #endif
+
 #if defined (Tas688)  //avoids sending nonsense messages to 644
       case RecTog5:
         {
@@ -214,11 +215,12 @@ void handleControlChange(byte channel, byte number, byte value)
     lastValue = value;
   }
 }
+
 //this part can be done as a CC as well
 void handleNoteOn(byte channel, byte pitch, byte velocity)
 { // send note on for muting
   // only really works as a toggle
-if ((pitch >= CHAN_MIN) && (pitch <= CHAN_MAX))
+  if ((pitch >= CHAN_MIN) && (pitch <= CHAN_MAX))
   {
     MIDI.sendNoteOn(pitch, 127, channel);
   }
@@ -306,6 +308,7 @@ void handlePitchBend(byte channel, int bend)
 //    }
 //  }
 //}
+
 
 
 
