@@ -1,5 +1,6 @@
 /*   Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
-
+//ff time 1:23
+//rw time 1:16
    The goal of this project is to create an open device that can replace the obsolete and
    all but impossible-to-find sync devices for various Tascam tape machines.
 
