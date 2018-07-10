@@ -29,8 +29,6 @@
 #define MIDI_CONTROL 1
 #include <MIDI.h>
 
-bool chaseMode = true;
-
 #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
 //UNO like
 #define UNO 1 //for interrupt stuff
@@ -49,7 +47,8 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 
 #endif
 
-
+extern volatile bool writeLTCOut;
+extern volatile bool writeMTCOut;
 void setup()
 {
   SerialOne.begin(9600, EVEN);
@@ -71,13 +70,10 @@ void loop()
   MIDI.read();
 #endif
 
-#if defined (TIME_SYNC)
-
-  {
-    timeCodeCall();
-  }
-#endif
-
+if (writeLTCOut && writeMTCOut)
+{
+    chaseSync();
+}
 
 }
 

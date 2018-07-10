@@ -11,10 +11,12 @@
 int tcOffset = -21;
 #endif
 
-//LTC stuff borrowed from Arduino forum
 
+bool chaseMode = true;
 int pushButtonD4 = 4;
 int pushButtonD3 = 3;
+
+//LTC stuff borrowed from Arduino forum
 #define oneTimeMax          475 // these values are setup for NTSC video
 #define oneTimeMin          300 // PAL would be around 1000 for 0 and 500 for 1
 #define zeroTimeMax         875 // 80bits times 29.97 frames per sec
@@ -46,8 +48,8 @@ char dfm = 'n';
 char dfl = 'n';
 byte hoursMTC, minutesMTC, secondsMTC, framesMTC;      //hours, minutes, seconds, frame
 byte hoursLTC, minutesLTC, secondsLTC, framesLTC;      //hours, minutes, seconds, frame
-int MTCWord = 0;
-int LTCWord = 0;
+unsigned int MTCWord = 0;
+unsigned int LTCWord = 0;
 
 volatile byte bufferLTC[8];
 volatile byte bufferMTC[8];     //timecode buffer
@@ -142,7 +144,8 @@ ISR(edgeCap)
       secondsLTC = (((bufferLTC[3] & 0x07) * 10) + (bufferLTC[2] & 0x0F));
       minutesLTC = (((bufferLTC[5] & 0x07) * 10) + (bufferLTC[4] & 0x0F));
       hoursLTC = (((bufferLTC[7] & 0x07) * 10) + (bufferLTC[6] & 0x0F));
-      LTCWord = (hoursLTC * 3600) + (minutesLTC * 60) + secondsLTC;
+      LTCWord = ((hoursLTC*225)<<4) + ((minutesLTC*15)<<2) + secondsLTC;
+//      Serial1.println("LTC!!!");
       writeLTCOut = true;
     }
   }
@@ -188,7 +191,7 @@ void handleTimeCodeQuarterFrame(byte data)
     minutesMTC = (bufferMTC[5] << 4) + bufferMTC[4];
     secondsMTC = (bufferMTC[3] << 4) + bufferMTC[2];
     framesMTC = (bufferMTC[1] << 4) + bufferMTC[0];
-    MTCWord = (hoursMTC * 3600) + (minutesMTC * 60) + secondsMTC;
+    MTCWord = ((hoursMTC*225)<<4) + ((minutesMTC<<2) * 15) + secondsMTC;
 
     dropFrameFlagMTC = (bufferMTC[1] & 0x04) != 0;
     if (dropFrameFlagMTC)
@@ -200,81 +203,55 @@ void handleTimeCodeQuarterFrame(byte data)
       dfm = 'n';
     }
     writeMTCOut = true;
-  }
-}
-void timeCodeCall()
-{
-  bool chase;
-  if (!digitalRead(pushButtonD4))
-  {
-    SerialOne.println('P');
-  }
-  if (!digitalRead(pushButtonD3))
-  {
-    SerialOne.println('S');
-  }
 
-  if (writeLTCOut && writeMTCOut)
-  {
-    chase = chaseSync();
-    if (chase)
-     {
-      SerialOne.println("success");
-     }  
-    
-  }
+}
 }
 
-bool chaseSync()
+void chaseSync()
 {
-  bool returnVal = false;
   int frameCompare = framesLTC - framesMTC;
   int wordCompare = LTCWord - MTCWord;
   unsigned int wordCompareDelay = abs(wordCompare)<<6;
   writeLTCOut = false;
   writeMTCOut = false;
+  
+    SerialOne.print(" ltc : ");
+    SerialOne.print(LTCWord,DEC);
+    SerialOne.print(" mtc : ");
+    SerialOne.println(MTCWord,DEC);  
+  
   if (MTCWord >= TC_MAX+tcOffset)
   {
     SerialOne.print('Z'); //return to zero
     SerialOne.println('P');
+    return;
   }
   
-  else if (wordCompare > 20)//LTC is leading
+  else if (wordCompare > 10)//LTC is leading
   {
     SerialOne.println(wordCompare);
     SerialOne.println('R');
     delay(wordCompareDelay);
     SerialOne.println('P');
-    SerialOne.print("LTC: ");
-    SerialOne.println(LTCWord,DEC);
-    SerialOne.print("MTC: ");
-    SerialOne.println(MTCWord,DEC);
-    returnVal = false;
+        SerialOne.println();
+    return;
   }
 
-  else if (wordCompare < 0)//LTC is following
-  {
+  else if (wordCompare < -10)//LTC is following
+  {   
     SerialOne.println(wordCompare);
     SerialOne.println('Q');
     delay(wordCompareDelay);
     SerialOne.println('P');
-    SerialOne.print("LTC: ");
-    SerialOne.println(LTCWord,DEC);
-    SerialOne.print("MTC: ");
-    SerialOne.println(MTCWord,DEC);
-    wordCompareDelay = abs(wordCompare)<<6;
-    returnVal = false;
+        SerialOne.println();
+    return;
   }
-  else //if (wordCompare ==0)
+  else //if (wordCompare ==tolerance)
   {
-    SerialOne.print("LTC: ");
-    SerialOne.println(LTCWord,DEC);
-    SerialOne.print("MTC: ");
-    SerialOne.println(MTCWord,DEC);
-    wordCompareDelay = abs(wordCompare)<<6;
-    returnVal = true;
+    SerialOne.println(wordCompare);  
+    return;
   }
-  return returnVal;
+  return;//just in case
 }
-#endif
 
+#endif
