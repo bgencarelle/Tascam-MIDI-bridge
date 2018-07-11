@@ -243,7 +243,7 @@ void chaseSync()
     delay(wordCompareDelay);
     SerialOne.println('P');
     SerialOne.println();
-		lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+    lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
     return;
   }
 
@@ -254,7 +254,7 @@ void chaseSync()
     delay(wordCompareDelay);
     SerialOne.println('P');
     SerialOne.println();
-		lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+    lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
     return;
   }
   else //if (wordCompare ==tolerance)
