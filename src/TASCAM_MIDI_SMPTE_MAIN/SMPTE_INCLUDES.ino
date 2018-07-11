@@ -26,6 +26,15 @@ int pushButtonD3 = 3;
 #define endSyncPosition      77
 #define endSmptePosition     80
 
+/*********************************************************************
+* HD: LTC "debouncing"
+**********************************************************************/
+// Amount of "debouce" time for LTC after sending PLAY
+// since the LTC seems to take seconds to settle to a new value after PLAY is sent
+#define LTC_DEBOUNCE_TIME_MS	2000
+// The last time PLAY is sent
+volatile unsigned long lastPlayTime = 0;
+
 volatile unsigned int bitTime;
 volatile bool validTcWord=false;
 volatile bool onesBitCount=false;
@@ -215,10 +224,10 @@ void chaseSync()
   writeLTCOut = false;
   writeMTCOut = false;
   
-    SerialOne.print(" ltc : ");
-    SerialOne.print(LTCWord,DEC);
-    SerialOne.print(" mtc : ");
-    SerialOne.println(MTCWord,DEC);  
+  SerialOne.print(" ltc : ");
+  SerialOne.print(LTCWord,DEC);
+  SerialOne.print(" mtc : ");
+  SerialOne.println(MTCWord,DEC);  
   
   if (MTCWord >= TC_MAX+tcOffset)
   {
@@ -227,23 +236,25 @@ void chaseSync()
     return;
   }
   
-  else if (wordCompare > 10)//LTC is leading
+  else if ((wordCompare > 10) && (millis() - lastPlayTime > LTC_DEBOUNCE_TIME_MS))//LTC is leading
   {
     SerialOne.println(wordCompare);
     SerialOne.println('R');
     delay(wordCompareDelay);
     SerialOne.println('P');
-        SerialOne.println();
+    SerialOne.println();
+		lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
     return;
   }
 
-  else if (wordCompare < -10)//LTC is following
+  else if ((wordCompare < -10) && (millis() - lastPlayTime > LTC_DEBOUNCE_TIME_MS))//LTC is following
   {   
     SerialOne.println(wordCompare);
     SerialOne.println('Q');
     delay(wordCompareDelay);
     SerialOne.println('P');
-        SerialOne.println();
+    SerialOne.println();
+		lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
     return;
   }
   else //if (wordCompare ==tolerance)
