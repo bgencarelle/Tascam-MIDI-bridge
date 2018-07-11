@@ -27,6 +27,19 @@ int pushButtonD3 = 3;
 #define endSmptePosition     80
 
 /*********************************************************************
+* HD: chasesync nonblocking state machine
+**********************************************************************/
+typdef enum
+{
+  playPaused,  // Playing or paused
+  rewindOrFastForward,  // Rewinding or fast forwarding
+} chaseState_t;
+
+volatile chaseState_t chaseState = playPaused;
+unsigned int lastRWFFTime = 0; // Last rewind or fastforward
+unsigned int lastDelayTime = 0; // Last delay time period for rewind or fastforward
+
+/*********************************************************************
 * HD: LTC "debouncing"
 **********************************************************************/
 // Amount of "debouce" time for LTC after sending PLAY
@@ -235,32 +248,45 @@ void chaseSync()
     SerialOne.println('P');
     return;
   }
-  
-  else if ((wordCompare > 10) && (millis() - lastPlayTime > LTC_DEBOUNCE_TIME_MS))//LTC is leading
+  else 
   {
-    SerialOne.println(wordCompare);
-    SerialOne.println('R');
-    delay(wordCompareDelay);
-    SerialOne.println('P');
-    SerialOne.println();
-    lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
-    return;
-  }
-
-  else if ((wordCompare < -10) && (millis() - lastPlayTime > LTC_DEBOUNCE_TIME_MS))//LTC is following
-  {   
-    SerialOne.println(wordCompare);
-    SerialOne.println('Q');
-    delay(wordCompareDelay);
-    SerialOne.println('P');
-    SerialOne.println();
-    lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
-    return;
-  }
-  else //if (wordCompare ==tolerance)
-  {
-    SerialOne.println(wordCompare);  
-    return;
+    switch (chaseState)
+    {
+      case rewindOrFastForward:
+        if (millis() - lastRWFFTime >= lastDelayTime) // If the program has rewinded or fastforwarded for long enough
+        {
+          // Send play
+          SerialOne.println('P');
+          SerialOne.println();
+          // Update the last play time to wait for LTC to settle
+          lastPlayTime = millis();
+          // Switch to playing state
+          chaseState = playPaused;
+        }
+        break;
+      case playPaused:
+        Serial.println(wordCompare)
+        if ((abs(wordCompare) > 10) && (millis() - lastPlayTime > LTC_DEBOUNCE_TIME_MS))
+        {          
+          if (wordCompare > 0) // If LTC leads
+          {
+            SerialOne.println('R'); // Rewind
+          }
+          else  // If LTC lags
+          {
+            SerialOne.println('Q'); // Fast forward
+          }
+          // Update the last time REWIND or FASTFORWARD is sent
+          lastRWFFTime = millis(); 
+          // Update the amount of time before sending PLAY
+          lastDelayTime = wordCompareDelay;
+          // Switch to rewinding or fastforwarding state and wait for the next play
+          chaseState = rewindOrFastForward;
+        }
+        break;
+      default:
+        break;
+    }
   }
   return;//just in case
 }
