@@ -1,3 +1,4 @@
+
 /*   Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
 //ff time 1:23
 //rw time 1:16
@@ -53,8 +54,8 @@ extern volatile bool writeMTCOut;
 void setup()
 {
   SerialOne.begin(9600, EVEN);
-  SerialOne.println('S');
-  SerialOne.println();
+ // SerialOne.println('S');
+ // SerialOne.println();
 #if defined (MIDI_CONTROL)
   midiSetup();
 #endif
@@ -70,11 +71,6 @@ void loop()
 #if defined (MIDI_CONTROL)
   MIDI.read();
 #endif
-
-if (writeLTCOut && writeMTCOut)
-{
-    chaseSync();
-}
 
 }
 

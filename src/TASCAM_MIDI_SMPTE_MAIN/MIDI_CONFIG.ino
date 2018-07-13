@@ -1,5 +1,5 @@
-//#define Tas644 1
-#define Tas688
+//#define TAS_644 1
+#define TAS_688
 #define CC_CHANNEL 16//everything on one CC makes easier
 #define CHAN_MIN 36
 #define CHAN_MAX 45
@@ -127,7 +127,7 @@ void handleControlChange(byte channel, byte number, byte value)
           SerialOne.println("C3");//record on
         }
         break;
-#if (defined (Tas644)&&defined(TIME_SYNC)) //sync Track is 4th track
+#if (!defined (TAS_644)|| !defined(TIME_SYNC)) //sync Track is 4th track
       case RecTog4:
         {
           SerialOne.println("C4");//record on
@@ -135,7 +135,7 @@ void handleControlChange(byte channel, byte number, byte value)
         break;
 #endif
 
-#if defined (Tas688)  //avoids sending nonsense messages to 644
+#if defined (TAS_688)  //avoids sending nonsense messages to 644
       case RecTog5:
         {
           SerialOne.println("C5");//record on
@@ -258,56 +258,6 @@ void handlePitchBend(byte channel, int bend)
 // // SerialOne.println('Z');//return to zero
 //}
 
-//Sysex MMC is a pain.  These work, but it is probably best to choose either MMC or CC
-//void handleSystemExclusive(byte *array, unsigned size)
-//{
-//  if ((array[0] == 0xF0) && (array[size - 1] == 0xf7))
-//  {
-//    if (array[1] == 0x7f)
-//    {
-//      if ( array[2] == 0x7f)
-//      {
-//        switch (array[4]) {
-//
-//          case 0x01://F0  7F  7F  06  01  F7  stop
-//
-//            SerialOne.println('S');
-//            break;
-//
-//          case 0x02://F0  7F  7F  06  02  F7 play
-//            SerialOne.println('P');//play
-//            break;
-//
-//          case 0x03://F0  7F  7F  06  03  F7 FF
-//            SerialOne.println('P');//play
-//            break;
-//
-//          case 0x06://F0  7F  7F  06  06  F7  |  MMC Record Strobe
-//            SerialOne.println('V');
-//            break;
-//
-//          case 0x07://F0  7F  7F  06  06  F7  |  MMC Record Off
-//            SerialOne.println('W');
-//            break;
-//
-//          case 0x09://F0  7F  7F  06  09  F7  |  MMC Pause
-//            SerialOne.println('X');
-//            break;
-//
-//          default:
-//            SerialOne.print(array[0], HEX);
-//            SerialOne.print(array[1], HEX);
-//            SerialOne.print(array[2], HEX);
-//            SerialOne.print(array[3], HEX);
-//            SerialOne.print(array[4], HEX);
-//            SerialOne.print(array[5], HEX);
-//            SerialOne.println("   unknown mmc message ");
-//
-//        }
-//      }
-//    }
-//  }
-//}
 
 
 
