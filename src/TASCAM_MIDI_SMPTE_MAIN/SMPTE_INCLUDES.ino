@@ -235,7 +235,7 @@ void chaseSync()
   long travelTime = 0;
   unsigned int lastLTCWord;
   int tuningWord = 2;
-  unsigned long wordCompareDelay = (unsigned long)(((travelTime)) + (94 * ((unsigned long)(abs(wordCompare)))));
+  unsigned long wordCompareDelay;
   SerialOne.println('P');
   if (writeLTCOut)
   {
@@ -251,6 +251,7 @@ void chaseSync()
     {
      // SerialOne.println(wordCompareDelay);
       SerialOne.println('R');
+      wordCompareDelay = (unsigned long)(((travelTime)) + (86 * ((unsigned long)(abs(wordCompare)))));
       delay(wordCompareDelay);
       delayMicroseconds(10000);
       SerialOne.println();
@@ -262,6 +263,7 @@ void chaseSync()
     {
      // SerialOne.print(wordCompareDelay);
       SerialOne.println('Q');
+      wordCompareDelay = (unsigned long)(((travelTime)) + (104 * ((unsigned long)(abs(wordCompare)))));
       delay(wordCompareDelay);
       delayMicroseconds(10000);
       SerialOne.println();
