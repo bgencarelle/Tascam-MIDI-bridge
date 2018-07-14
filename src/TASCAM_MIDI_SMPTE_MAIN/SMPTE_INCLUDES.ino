@@ -9,10 +9,9 @@
 #if defined (TAS_644) || defined(TAS_688)
 #define TC_MAX 900 //largest sized timecode (15minutes *60 seconds in a minute)
 int tcOffset = -21;
+unsigned int tcOffsetCalc = TC_MAX + tcOffset;
 #endif
 
-
-bool chaseMode = true;
 int pushButtonD4 = 4;
 int pushButtonD3 = 3;
 
@@ -34,7 +33,6 @@ int pushButtonD3 = 3;
 #define LTC_DEBOUNCE_TIME_MS  2000
 // The last time PLAY is sent
 volatile unsigned long lastPlayTime = 0;
-
 volatile unsigned int bitTime;
 volatile bool validTcWord = false;
 volatile bool onesBitCount = false;
@@ -42,13 +40,17 @@ volatile bool tcSync;
 volatile byte totalBits;
 volatile bool currentBit;
 volatile byte syncCount;
+enum lastTransport
+{
+  Stopped = 0,
+  Play = 1,
+  FF = 2,
+  RW = 3,
+};
 
 char* flagLTC;
 char* flagMTC;
 //MTC stuff from forum
-char timeCodeMTC[14];
-char timeCodeLTC2[14];
-volatile byte timeCodeLTC[14];
 volatile bool writeLTCOut;
 volatile bool writeMTCOut;
 volatile bool dropFrameFlagLTC;
@@ -59,8 +61,8 @@ byte hoursMTC, minutesMTC, secondsMTC, framesMTC;      //hours, minutes, seconds
 byte hoursLTC, minutesLTC, secondsLTC, framesLTC;      //hours, minutes, seconds, frame
 unsigned int MTCWord = 0;
 unsigned int LTCWord = 0;
-unsigned int OldLTCWord = 0;
-unsigned int OldMTCWord = 0;
+unsigned int oldLTCWord = 0;
+unsigned int oldMTCWord = 0;
 
 volatile byte bufferLTC[8];
 volatile byte bufferMTC[8];     //timecode buffer
@@ -70,6 +72,7 @@ int ctr = 0;
 /* ICR interrupt vector */
 ISR(edgeCap)
 {
+  bool sanityCheckLTC = false; //check for validity of timecode message
 #if defined UNO
   //toggleCaptureEdge
   TCCR1B ^= _BV(ICES1);
@@ -147,24 +150,25 @@ ISR(edgeCap)
       secondsLTC = (((bufferLTC[3] & 0x07) * 10) + (bufferLTC[2] & 0x0F));
       minutesLTC = (((bufferLTC[5] & 0x07) * 10) + (bufferLTC[4] & 0x0F));
       hoursLTC = (((bufferLTC[7] & 0x07) * 10) + (bufferLTC[6] & 0x0F));
-      LTCWord = ((hoursLTC * 225) << 4) + ((minutesLTC * 15) << 2) + secondsLTC;
-
-      if ((LTCWord > 0) && (LTCWord == OldLTCWord + 1 || LTCWord == OldLTCWord))
+      unsigned int LTCWordCalc = (hoursLTC * 3600) + (minutesLTC * 60) + secondsLTC;
+      if ((LTCWordCalc < tcOffsetCalc))
+      {
+        LTCWord = LTCWordCalc;
+      }
+      else
+      {
+        LTCWord = tcOffsetCalc;
+      }
+      sanityCheckLTC = ((LTCWord > 0) && (LTCWord == oldLTCWord + 1 || LTCWord == oldLTCWord)&&(LTCWord<tcOffsetCalc));
+      if (sanityCheckLTC)
       {
         writeLTCOut = true;
-        if ( (OldLTCWord >= TC_MAX + tcOffset) && (OldLTCWord + 1 >= TC_MAX + tcOffset) && (LTCWord + 1 >= TC_MAX + tcOffset))
-        {
-          SerialOne.println("ZP");
-          writeLTCOut = false;
-          LTCWord = 0;
-        }
       }
       else
       {
         writeLTCOut = false;
       }
-
-      OldLTCWord = LTCWord;
+      oldLTCWord=LTCWord;
     }
   }
 }
@@ -172,6 +176,7 @@ ISR(edgeCap)
 void smpteSetup()
 {
   MIDI.setHandleTimeCodeQuarterFrame(handleTimeCodeQuarterFrame);
+  //pinMode(syncControlPin, INPUT);
   pinMode(icpPin, INPUT);// ICP pin (digital pin 8 on arduino uno) as input
   pinMode(pushButtonD4, INPUT_PULLUP);
   pinMode(pushButtonD3, INPUT_PULLUP);
@@ -199,6 +204,7 @@ void smpteSetup()
 
 void handleTimeCodeQuarterFrame(byte data)
 {
+  bool sanityCheck = 0;
   index = data >> 4;  //extract index/packet ID
   data &= 0x0F;       //clear packet ID from data
   bufferMTC[index] = data;
@@ -210,82 +216,101 @@ void handleTimeCodeQuarterFrame(byte data)
     minutesMTC = (bufferMTC[5] << 4) + bufferMTC[4];
     secondsMTC = (bufferMTC[3] << 4) + bufferMTC[2];
     framesMTC = (bufferMTC[1] << 4) + bufferMTC[0];
-    MTCWord = ((hoursMTC * 225) << 4) + ((minutesMTC << 2) * 15) + secondsMTC;
-    if ( (OldMTCWord >= TC_MAX + tcOffset) && (OldMTCWord + 1 >= TC_MAX + tcOffset) && (MTCWord + 1 >= TC_MAX + tcOffset))
-    {
-      if (writeMTCOut)
-      {
-        SerialOne.print("ZP");
-      }
-      writeMTCOut = false;
-    }
-    else if (MTCWord > 0 && (MTCWord == OldMTCWord + 1 || LTCWord == OldMTCWord))
+    MTCWord = (hoursMTC * 3600) + (minutesMTC * 60) + secondsMTC;
+    sanityCheck = ((MTCWord > 0) && (MTCWord == oldMTCWord + 1 || LTCWord == oldMTCWord));
+    if (sanityCheck)
     {
       writeMTCOut = true;//return to zero
-      chaseSync();
     }
-    OldMTCWord = MTCWord;
+    else if (!sanityCheck)
+    {
+      writeMTCOut = false;
+    }
+    oldMTCWord = MTCWord;
+  }
+  if (writeMTCOut )
+  {
+    chaseSync();
   }
 }
+
 
 void chaseSync()
 {
-  int frameCompare = framesLTC - framesMTC;
-  int wordCompare = LTCWord - MTCWord;
-  long travelTime = 0;
-  unsigned int lastLTCWord;
+  static bool ctrFlag;
+  static unsigned int ctr=0;
   int tuningWord = 2;
-  unsigned long wordCompareDelay = (unsigned long)(((travelTime)) + (94 * ((unsigned long)(abs(wordCompare)))));
-  SerialOne.println('P');
-  if (writeLTCOut)
+  static byte state; 
+  int wordCompare; 
+  writeMTCOut = false;
+  SerialOne.println("valid mtc");
+  
+    if (ctrFlag)
   {
-    lastLTCWord = LTCWord;
-    writeLTCOut = false;
-    writeMTCOut = false;
-    SerialOne.print(frameCompare, DEC);
-    SerialOne.print(": ltc : ");
-    SerialOne.print(LTCWord, DEC);
-    SerialOne.print(" mtc : ");
-    SerialOne.println(MTCWord, DEC);
-    if ((wordCompare > 1) && (millis() - lastPlayTime > LTC_DEBOUNCE_TIME_MS))//LTC is leading
-    {
-     // SerialOne.println(wordCompareDelay);
-      SerialOne.println('R');
-      delay(wordCompareDelay);
-      delayMicroseconds(10000);
-      SerialOne.println();
-      SerialOne.println('P');
-      lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+    ctr++;
+    SerialOne.println(ctr,DEC);
+  }
+  else if(!ctrFlag)
+  {
+    ctr =0;
+  }
+  
+  if (((MTCWord < tcOffsetCalc)&&(!writeLTCOut))&&(ctr<=2))
+  {
+    ctrFlag = true;
+    SerialOne.println('P');
+    lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+    
+  }
+  else if ((MTCWord < tcOffsetCalc)&&(writeLTCOut))
+  {
+      ctrFlag=false;
+      wordCompare = LTCWord - MTCWord;
+      writeLTCOut = false;
+      SerialOne.println("valid ltc");
+      if ((wordCompare > 1) && ((millis() - lastPlayTime) > LTC_DEBOUNCE_TIME_MS))//LTC is leading
+      {
+        unsigned long wordCompareDelayRW =  (80 * (unsigned long)(abs(wordCompare)));
+        SerialOne.println('R');
+        delay(wordCompareDelayRW);
+        delayMicroseconds(16000);
+        SerialOne.println();
+        state = lastTransport::RW;
+        lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+      }
+      else if ((wordCompare < -1) && ((millis() - lastPlayTime) > LTC_DEBOUNCE_TIME_MS))//LTC is following
+      {
+        unsigned long wordCompareDelayFF =  (102 * (unsigned long)(abs(wordCompare)));
+        SerialOne.println('Q');
+        delay(wordCompareDelayFF);
+        delayMicroseconds(16000);
+        SerialOne.println();
+        SerialOne.println('P');
+        state = lastTransport::FF;
+        lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+      }
+      else if ((wordCompare >= -1) && (wordCompare <= 1))
+      {
+        int frameCompare = framesLTC - framesMTC;
+        SerialOne.print(frameCompare, DEC);
+        SerialOne.print(" ltc : ");
+        SerialOne.print(LTCWord, DEC);
+        SerialOne.print(" mtc : ");
+        SerialOne.println(MTCWord, DEC);
+        state = lastTransport::Play;
+        lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+      }
     }
 
-    else if ((wordCompare < -1) && (millis() - lastPlayTime > LTC_DEBOUNCE_TIME_MS))//LTC is following
-    {
-     // SerialOne.print(wordCompareDelay);
-      SerialOne.println('Q');
-      delay(wordCompareDelay);
-      delayMicroseconds(10000);
-      SerialOne.println();
-      SerialOne.println('P');
-      lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
-    }
-    else //if (wordCompare ==tolerance)
-    {
-      SerialOne.print(frameCompare, DEC);
-      SerialOne.print(" ltc : ");
-      SerialOne.print(LTCWord, DEC);
-      SerialOne.print(" mtc : ");
-      SerialOne.println(MTCWord, DEC);
-    }
-    return;
-  }
-  else if (!writeLTCOut && lastLTCWord >= 600)
+   else if (((MTCWord >= tcOffsetCalc) || (LTCWord >= tcOffsetCalc))||ctr>=3)
   {
-    writeMTCOut = false;
-    SerialOne.println('R');
-    delay(500);
-    SerialOne.println('P');
-    return;
-  }
+    ctrFlag=false;
+    SerialOne.println("ZP");
+    state = lastTransport::RW;
+    lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+  }   
 }
 
 #endif
+
+
