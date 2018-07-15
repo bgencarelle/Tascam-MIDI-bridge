@@ -49,13 +49,12 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 
 #endif
 
-extern volatile bool writeLTCOut;
-extern volatile bool writeMTCOut;
 void setup()
 {
   SerialOne.begin(9600, EVEN);
  // SerialOne.println('S');
  // SerialOne.println();
+ 
 #if defined (MIDI_CONTROL)
   midiSetup();
 #endif

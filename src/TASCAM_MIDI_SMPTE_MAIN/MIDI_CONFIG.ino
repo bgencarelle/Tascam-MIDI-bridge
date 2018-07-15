@@ -1,5 +1,6 @@
-//#define TAS_644 1
-#define TAS_688
+//#define TAS_644_HIGH_SPEED 1
+//#define TAS_644_LOW_SPEED 1
+#define TAS_688 1
 #define CC_CHANNEL 16//everything on one CC makes easier
 #define CHAN_MIN 36
 #define CHAN_MAX 45
