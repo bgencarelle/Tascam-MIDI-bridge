@@ -1,41 +1,29 @@
-
-
 /*   Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
+
+//ff time 1:23 
+//rw time 1:16 
+//pin 13 on the controller handles chaseMode 
+//pin 5 is direction-rw is low ff/play/stop is high 
+//pin 6 is tach pulse  3.22 hz is play, rw is between 25 and ~78hz ends low, ff is 44 to 30 hz,play is 2.92hz 
+
    The goal of this project is to create an open device that can replace the obsolete and
    all but impossible-to-find sync devices for various Tascam tape machines.
-
-   Hardware roughly required:
-
-   Arduino compatible microcontroller
-   some sort of inverter/buffer to convert the UART data to reasonable voltages for RS-232
-   Opto-isolator for standard MIDI
-   Obviously USB midi and Bluetooth can be used, but are not currently implemented.
-
-   Hardware specifically used by me:
-   Arduino Uno with Midi Shield
-   CD 4049 inverter for converting LTC from audio to digital and two other pins for UART inversion.
-   You may want to use better hardware. I had no problems.
-   various resistors and caps.
-   USB FTDI uart thing for debugging
-
-  There is a pinout available in the documents, just remember to connect your transmit to the device's receive
-  and to both protect and invert the inputs from the higher and lower voltages that RS-232 uses. I had great luck with
-  the 4049s and 5v, but I am not sure if 3.3v stuff would play nice.
-
   See the Readme.md for more details
    2018 Ben Gencarelle
 */
-//#define EXTERNAL_CONTROL 1 // to use for generalized control
-#define TIME_SYNC 1
-
-#if !defined(TIME_SYNC)
-  #define STRIPE_MODE 1
-#endif
-
-#define MIDI_CONTROL 1
 #include <MIDI.h>
 #include <Tone.h>
-Tone playspeed;
+Tone playSpeed; 
+
+#define TIME_SYNC 1 //comment this out for just MIDI control over serial port
+//#define EXTERNAL_CONTROL 1 // to use for generalized control
+#define MIDI_CONTROL 1
+#define MOTOR_SPEED_LOW 9200 
+#define MOTOR_SPEED_RUN 9600 
+#define MOTOR_SPEED_HIGH 9900 
+#if !defined(TIME_SYNC) 
+  #define STRIPE_MODE 1 
+#endif 
 
 #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
 //UNO like
@@ -44,7 +32,6 @@ Tone playspeed;
 #include <SoftwareSerialParity.h>// Not needed for devices with multiple UARTS
 SoftwareSerialParity SerialOne(10, 11); // RX, TX
 MIDI_CREATE_DEFAULT_INSTANCE();
-
 #elif (__AVR_ATmega2560__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega640__)
 //Arduino Mega like
 #define MEGA 1 //for interrupt stuff
@@ -52,18 +39,30 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #define EVEN SERIAL_8E1
 HardwareSerial & SerialOne = Serial1;
 MIDI_CREATE_DEFAULT_INSTANCE();
-
 #endif
 
-int pushButtonD4 = 4;
-int pushButtonD3 = 3;
-int chaseStateControlPin= 9;
-int chaseFrequencyPin=8;
+
+
+int pushButtonD4 = 4; 
+int pushButtonD3 = 3; 
+int chaseStateControlPin= 9; 
+int chaseFrequencyPin=8;  
 
 void setup()
 {
+
   SerialOne.begin(9600, EVEN);
- 
+  pinMode(chaseFrequencyPin,OUTPUT); 
+  pinMode(chaseStateControlPin,OUTPUT); 
+  digitalWrite(chaseStateControlPin, HIGH); 
+  delay(100); 
+  digitalWrite(chaseStateControlPin, LOW); 
+  playSpeed.begin(chaseFrequencyPin);// 
+  playSpeed.play(MOTOR_SPEED_RUN);// 
+  
+#if defined (STRIPE_MODE) 
+  stripeSetup();//  
+#endif 
 #if defined (MIDI_CONTROL)
   midiSetup();
 #endif
@@ -72,15 +71,11 @@ void setup()
  smpteSetup();
 #endif
 
-#if defined (STRIPE_MODE)
-  stripeSetup();// 
-#endif
-
 }
 
 void loop()
 {
-#if defined (MIDI_CONTROL) && !defined (STRIPE_MODE)
+#if defined (MIDI_CONTROL) && !defined (STRIPE_MODE) 
   MIDI.read();
 #endif
 

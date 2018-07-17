@@ -11,25 +11,14 @@
 #elif (defined (TAS_644_LOW_SPEED))
 #define TC_MAX 1800
 #endif
+int tcOffset = -40; 
+unsigned int tcOffsetCalc = TC_MAX + tcOffset; 
 
-
-//ff time 1:23
-//rw time 1:16
-//pin 13 on the controller handles chaseMode
-//pin 5 is direction-rw is low ff/play/stop is high
-//pin 6 is tach pulse  3.22 hz is play, rw is between 25 and ~78hz ends low, ff is 44 to 30 hz,play is 2.92hz
-#define MOTOR_SPEED_LOW 9200
-#define MOTOR_SPEED_RUN 9600
-#define MOTOR_SPEED_HIGH 9900
-
-int tcOffset = -40;
-unsigned int tcOffsetCalc = TC_MAX + tcOffset;
 //LTC stuff borrowed from Arduino forum
-#define oneTimeMax          475 // these values are setup for NTSC video 
-#define oneTimeMin          300 // PAL would be around 1000 for 0 and 500 for 1 
-#define zeroTimeMax         875 // 80bits times 29.97 frames per sec 
-#define zeroTimeMin         700 // equals 833 (divide by 8 clock pulses) 
- 
+#define oneTimeMax          475 // these values are setup for NTSC video
+#define oneTimeMin          300 // PAL would be around 1000 for 0 and 500 for 1
+#define zeroTimeMax         875 // 80bits times 29.97 frames per sec
+#define zeroTimeMin         700 // equals 833 (divide by 8 clock pulses)
 
 #define endDataPosition      63
 #define endSyncPosition      77
@@ -70,15 +59,15 @@ char dfl = 'n';
 volatile byte hoursMTC, minutesMTC, secondsMTC, framesMTC;      //hours, minutes, seconds, frame
 volatile byte hoursLTC, minutesLTC, secondsLTC, framesLTC;      //hours, minutes, seconds, frame
 volatile int framesCompare;
-volatile int MTCWord = 0;
-volatile int LTCWord = 0;
+volatile unsigned int MTCWord = 0;
+volatile unsigned int LTCWord = 0;
+unsigned int oldLTCWord = 0;
+unsigned int oldMTCWord = 0;
 
 volatile byte bufferLTC[8];
 volatile byte bufferMTC[8];     //timecode buffer
 volatile byte command, data, index;
 
-volatile unsigned int oldMTCWord =0;
-volatile unsigned int oldLTCWord=0;
 
 /* ICR interrupt vector */
 ISR(edgeCap)
@@ -156,7 +145,7 @@ ISR(edgeCap)
     {
       validTcWord = false;
       dropFrameFlagLTC = (bufferLTC[1] & 0x04) != 0;
-      byte framesTempLTC = (((bufferLTC[1] & 0x07) * 10) + (bufferLTC[0] & 0x0F));
+      framesLTC = (((bufferLTC[1] & 0x07) * 10) + (bufferLTC[0] & 0x0F));
       secondsLTC = (((bufferLTC[3] & 0x07) * 10) + (bufferLTC[2] & 0x0F));
       minutesLTC = (((bufferLTC[5] & 0x07) * 10) + (bufferLTC[4] & 0x0F));
       hoursLTC = (((bufferLTC[7] & 0x07) * 10) + (bufferLTC[6] & 0x0F));
@@ -170,10 +159,6 @@ ISR(edgeCap)
         LTCWord = tcOffsetCalc;
       }
       writeLTCOut = ((LTCWord > 0) && (LTCWord == oldLTCWord + 1 || LTCWord == oldLTCWord)&&(LTCWord<tcOffsetCalc));
-      if (writeLTCOut)
-      {
-        framesLTC =framesTempLTC;
-      }
       oldLTCWord=LTCWord;
     }
   }
@@ -181,24 +166,11 @@ ISR(edgeCap)
 
 void smpteSetup()
 {
-
   MIDI.setHandleTimeCodeQuarterFrame(handleTimeCodeQuarterFrame);
   //pinMode(syncControlPin, INPUT);
   pinMode(icpPin, INPUT);// ICP pin (digital pin 8 on arduino uno) as input
-  pinMode(chaseFrequencyPin,OUTPUT);
-  pinMode(chaseStateControlPin,OUTPUT);
-  digitalWrite(chaseStateControlPin, LOW);
-  delay(100);
-  digitalWrite(chaseStateControlPin, HIGH);
-  delay(100);
-  digitalWrite(chaseStateControlPin, LOW);
-  delay(100);
-  digitalWrite(chaseFrequencyPin, LOW);
-  
-  playspeed.begin(chaseFrequencyPin);//
-  playspeed.play(MOTOR_SPEED_RUN);//
-  digitalWrite(chaseStateControlPin, LOW);
-  digitalWrite(chaseFrequencyPin, LOW);
+  pinMode(pushButtonD4, INPUT_PULLUP);
+  pinMode(pushButtonD3, INPUT_PULLUP);
   bitTime = 0;
   totalBits =  0;
   currentBit =  0;
@@ -230,7 +202,7 @@ void handleTimeCodeQuarterFrame(byte data)
   if (index >= 0x07)
   { //recalculate timecode once FRAMES LSB quarter-frame received
     
-    unsigned int tempFramesMTC = (bufferMTC[1] <<4) + bufferMTC[0];
+    framesMTC = (bufferMTC[1] <<4) + bufferMTC[0];
     dropFrameFlagMTC = (bufferMTC[1] & 0x04) != 0;
     hoursMTC = ((bufferMTC[7] & 0x01) << 4) + bufferMTC[6];//we will only look at 0 or 1 hour
     minutesMTC = (bufferMTC[5] << 4) + bufferMTC[4];
@@ -240,7 +212,6 @@ void handleTimeCodeQuarterFrame(byte data)
     if (writeMTCOut )
     {
       chaseSync();
-      framesMTC=tempFramesMTC;
     }
     oldMTCWord = MTCWord;
   }
@@ -249,20 +220,16 @@ void handleTimeCodeQuarterFrame(byte data)
 
 void chaseSync()
 {
-  static unsigned int motorSpeed =MOTOR_SPEED_HIGH;
-  static unsigned int oldMotorSpeed=motorSpeed;
   static bool ctrFlag;
   static unsigned int ctr=0;
-  int tuningWord = 1;
+  int tuningWord = 2;
   static byte state; 
-  volatile int wordCompare; 
+  int wordCompare; 
+  writeMTCOut = false;
   unsigned long oldTime;
   unsigned long currentTime;
-  unsigned int oldLTCWord;
-  static int oldFramesCompare;
-  volatile unsigned long wordCompareDelayRW;
-  volatile unsigned long wordCompareDelayFF;  
-  playspeed.play(oldMotorSpeed);
+  
+  //SerialOne.println("valid mtc");
   
     if (ctrFlag)
   {
@@ -273,85 +240,115 @@ void chaseSync()
     ctr =0;
   }
   
-  if (((MTCWord < tcOffsetCalc)&&(!writeLTCOut)))
+  if (((MTCWord < tcOffsetCalc)&&(!writeLTCOut))&&(ctr<=2))
   {
+    ctrFlag = true;
     SerialOne.println('P');
-    writeMTCOut = false;
+    delay(500);
+    lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
+    
   }
-  
-   else if((MTCWord >= tcOffsetCalc) && (!writeLTCOut))
-   {
-    SerialOne.println('R');
-    writeMTCOut = false;
-   }
-   
   else if ((MTCWord < tcOffsetCalc)&&(writeLTCOut))
   {
+     
       oldTime = millis();
-      currentTime=oldTime; 
+      currentTime=oldTime;
       writeLTCOut = false;
-      writeMTCOut = false;      
-
-      if ((wordCompare > tuningWord))//LTC is leading
-      {
+      unsigned int oldLTCWord=LTCWord;
+      ctrFlag=false;
       wordCompare = LTCWord - MTCWord;
-      wordCompareDelayRW =  (75 * (unsigned long)(abs(wordCompare)));   
+     // SerialOne.println("valid ltc");
+      if ((wordCompare > 1) && ((millis() - lastPlayTime) > LTC_DEBOUNCE_TIME_MS))//LTC is leading
+      {
+        unsigned long wordCompareDelayRW =  (75 * (unsigned long)(abs(wordCompare)));
         SerialOne.println('R');
-        while(currentTime <= oldTime+wordCompareDelayRW)
-        {
+        SerialOne.println(wordCompareDelayRW/1000);
+        do{
+            wordCompareDelayRW =  (75 * (unsigned long)(abs(oldLTCWord - MTCWord)));
            currentTime = millis();
         }
+        while(currentTime <= oldTime+wordCompareDelayRW);
+        SerialOne.println();
+        state = lastTransport::RW;
+        lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
       }
-      
-      else if ((wordCompare < -tuningWord))//LTC is following
+      else if ((wordCompare < -1) && ((millis() - lastPlayTime) > LTC_DEBOUNCE_TIME_MS))//LTC is following
       {
-      wordCompare = LTCWord - MTCWord;
-      wordCompareDelayFF =  (105 * (unsigned long)(abs(wordCompare)));  
+        unsigned long wordCompareDelayFF =  (105 * (unsigned long)(abs(wordCompare)));
+        SerialOne.println(wordCompareDelayFF/1000);
         SerialOne.println('Q');
+        
         while(currentTime <= oldTime+wordCompareDelayFF)
         {
-          if(MTCWord >= tcOffsetCalc)
+          if((MTCWord >= tcOffsetCalc)||MTCWord<oldLTCWord)
            {
-            SerialOne.println('S');
-            wordCompareDelayFF =0;
+            SerialOne.println('R');
            }
+          else
+          {
+            //
+          }
            currentTime = millis();
         }
+        SerialOne.println('P');
+        state = lastTransport::FF;
+        lastPlayTime = millis(); //Update last play time to wait for the next LTC to settle
       }
-      
-      else if ((wordCompare >= -tuningWord) && (wordCompare <= tuningWord))
+      else if (((wordCompare >= -1) && (wordCompare <= 1))&& ((millis() - lastPlayTime) > LTC_DEBOUNCE_TIME_MS))
       {
-        
-        framesCompare = (30*wordCompare)+(framesLTC - framesMTC);
-        if (((framesCompare)>=2))
+         currentTime = millis();
+        framesCompare = (int)(10*((secondsLTC*30)+framesLTC)) - (int)((10*((secondsMTC*30)+framesMTC)));
+        if ((framesCompare)>=5)
         {
-          motorSpeed -= 25;
-          playspeed.play(motorSpeed);
+          playSpeed.play(4800);
+          while (millis()<=currentTime+20)
+          {
+            millis();
+          }
+          SerialOne.println("over");
+          playSpeed.play(9600);
+        }
+        else if (framesCompare <= -5)
+        {
+          playSpeed.play(16800);
+          
+          while (millis()<=currentTime+20)
+          {
+            millis();
+          }
+          SerialOne.println("under"); 
+          playSpeed.play(9600);          
+        }
+        else if ((framesCompare >= -1) && (framesCompare <= 1))
+        {
+          
+          playSpeed.play(9600);
+          SerialOne.println("good enough");
+        }
         SerialOne.println(framesCompare);
-        }
-        else if (((framesCompare <= -2) ))
-        {
-          motorSpeed += 25;  
-          playspeed.play(motorSpeed);  
-           
-        SerialOne.println(framesCompare);    
-        }
-        else
-        {
-          motorSpeed=MOTOR_SPEED_RUN;
-          playspeed.play(motorSpeed);
-        SerialOne.println(framesCompare);
-        }
-        
-        oldFramesCompare=framesCompare;
-        SerialOne.println(motorSpeed,DEC);
-        oldMotorSpeed = motorSpeed;
+        state = lastTransport::Play;
       }
     }
-    if (motorSpeed>MOTOR_SPEED_HIGH || motorSpeed<MOTOR_SPEED_LOW)
+   else if(MTCWord >= tcOffsetCalc)
+   {
+    writeMTCOut = false;
+    ctrFlag=true;
+    SerialOne.println('S');
+   }
+   else if ((ctr>=3)&&(!writeLTCOut))
+  {
+    
+    currentTime = millis();
+    writeMTCOut = false;
+    ctrFlag=false;
+    SerialOne.println('R');
+    while (millis()<=currentTime+3000)
     {
-      motorSpeed=MOTOR_SPEED_RUN;
+     millis();
     }
+    SerialOne.println('P');
+    state = lastTransport::RW;
+  }   
 }
 
 #endif
