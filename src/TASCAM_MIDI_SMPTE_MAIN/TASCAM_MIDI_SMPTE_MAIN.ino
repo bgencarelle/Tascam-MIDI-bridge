@@ -1,7 +1,6 @@
 
+
 /*   Tascam Serial Control for Midistudios and devices that use the Accessory 2 port.
-//ff time 1:23
-//rw time 1:16
    The goal of this project is to create an open device that can replace the obsolete and
    all but impossible-to-find sync devices for various Tascam tape machines.
 
@@ -26,10 +25,17 @@
   See the Readme.md for more details
    2018 Ben Gencarelle
 */
-#define TIME_SYNC 1 //comment this out for just MIDI control over serial port
 //#define EXTERNAL_CONTROL 1 // to use for generalized control
+#define TIME_SYNC 1
+
+#if !defined(TIME_SYNC)
+  #define STRIPE_MODE 1
+#endif
+
 #define MIDI_CONTROL 1
 #include <MIDI.h>
+#include <Tone.h>
+Tone playspeed;
 
 #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
 //UNO like
@@ -49,11 +55,14 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 
 #endif
 
+int pushButtonD4 = 4;
+int pushButtonD3 = 3;
+int chaseStateControlPin= 9;
+int chaseFrequencyPin=8;
+
 void setup()
 {
   SerialOne.begin(9600, EVEN);
- // SerialOne.println('S');
- // SerialOne.println();
  
 #if defined (MIDI_CONTROL)
   midiSetup();
@@ -63,11 +72,15 @@ void setup()
  smpteSetup();
 #endif
 
+#if defined (STRIPE_MODE)
+  stripeSetup();// 
+#endif
+
 }
 
 void loop()
 {
-#if defined (MIDI_CONTROL)
+#if defined (MIDI_CONTROL) && !defined (STRIPE_MODE)
   MIDI.read();
 #endif
 
