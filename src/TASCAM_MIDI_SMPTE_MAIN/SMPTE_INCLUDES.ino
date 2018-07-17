@@ -339,7 +339,6 @@ void chaseSync()
   {
     
     currentTime = millis();
-    writeMTCOut = false;
     ctrFlag=false;
     SerialOne.println('R');
     while (millis()<=currentTime+3000)
