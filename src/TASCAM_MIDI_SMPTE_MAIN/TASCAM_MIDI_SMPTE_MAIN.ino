@@ -18,9 +18,6 @@ Tone playSpeed;
 #define TIME_SYNC 1 //comment this out for just MIDI control over serial port
 //#define EXTERNAL_CONTROL 1 // to use for generalized control
 #define MIDI_CONTROL 1
-#define MOTOR_SPEED_LOW 9200 
-#define MOTOR_SPEED_RUN 9600 
-#define MOTOR_SPEED_HIGH 9900 
 #if !defined(TIME_SYNC) 
   #define STRIPE_MODE 1 
 #endif 
@@ -29,9 +26,14 @@ Tone playSpeed;
 //UNO like
 #define UNO 1 //for interrupt stuff
 #define icpPin 8 // ICP input pin on arduino
+#define MOTOR_SPEED_LOW 6400 
+#define MOTOR_SPEED_RUN 9650 
+#define MOTOR_SPEED_HIGH 12800
 #include <SoftwareSerialParity.h>// Not needed for devices with multiple UARTS
 SoftwareSerialParity SerialOne(10, 11); // RX, TX
 MIDI_CREATE_DEFAULT_INSTANCE();
+
+
 #elif (__AVR_ATmega2560__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega640__)
 //Arduino Mega like
 #define MEGA 1 //for interrupt stuff
@@ -39,6 +41,9 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #define EVEN SERIAL_8E1
 HardwareSerial & SerialOne = Serial1;
 MIDI_CREATE_DEFAULT_INSTANCE();
+#define MOTOR_SPEED_LOW 6400 
+#define MOTOR_SPEED_RUN 9600 
+#define MOTOR_SPEED_HIGH 12800 
 #endif
 
 
@@ -46,17 +51,18 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 int pushButtonD4 = 4; 
 int pushButtonD3 = 3; 
 int chaseStateControlPin= 9; 
-int chaseFrequencyPin=8;  
+int chaseFrequencyPin=12;  
 
 void setup()
 {
 
   SerialOne.begin(9600, EVEN);
+  SerialOne.println('S');
   pinMode(chaseFrequencyPin,OUTPUT); 
   pinMode(chaseStateControlPin,OUTPUT); 
-  digitalWrite(chaseStateControlPin, HIGH); 
-  delay(100); 
   digitalWrite(chaseStateControlPin, LOW); 
+  delay(100); 
+  digitalWrite(chaseStateControlPin, HIGH); 
   playSpeed.begin(chaseFrequencyPin);// 
   playSpeed.play(MOTOR_SPEED_RUN);// 
   
