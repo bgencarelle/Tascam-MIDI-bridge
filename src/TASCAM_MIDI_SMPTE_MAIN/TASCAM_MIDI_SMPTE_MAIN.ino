@@ -13,11 +13,19 @@
 */
 #include <MIDI.h>
 #include <Tone.h>
+#include <Wire.h>
+#include "SSD1306Ascii.h"
+#include "SSD1306AsciiWire.h"
+SSD1306AsciiWire oled;
+
+volatile bool writeLTCOut;
+volatile bool writeMTCOut;
 Tone playSpeed; 
 
 #define TIME_SYNC 1 //comment this out for just MIDI control over serial port
 //#define EXTERNAL_CONTROL 1 // to use for generalized control
 #define MIDI_CONTROL 1
+#define OLED_MODE 1
 #if !defined(TIME_SYNC) 
   #define STRIPE_MODE 1 
 #endif 
@@ -27,15 +35,13 @@ Tone playSpeed;
 #define UNO 1 //for interrupt stuff
 #define icpPin 8 // ICP input pin on arduino
 #define MOTOR_SPEED_LOW 6400 
-#define MOTOR_SPEED_RUN 9650 
+#define MOTOR_SPEED_RUN 9600 
 #define MOTOR_SPEED_HIGH 12800
 #include <SoftwareSerialParity.h>// Not needed for devices with multiple UARTS
-SoftwareSerialParity SerialOne(10, 11); // RX, TX
+SoftwareSerialParity SerialOne(6, 7); // RX, TX
 MIDI_CREATE_DEFAULT_INSTANCE();
 
-
-#elif (__AVR_ATmega2560__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega640__)
-//Arduino Mega like
+#elif (__AVR_ATmega2560__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega640__) 
 #define MEGA 1 //for interrupt stuff
 #define icpPin  48// ICP input pin on arduino -not needed as handled by interrupt
 #define EVEN SERIAL_8E1
@@ -46,12 +52,8 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #define MOTOR_SPEED_HIGH 12800 
 #endif
 
-
-
-int pushButtonD4 = 4; 
-int pushButtonD3 = 3; 
 int chaseStateControlPin= 9; 
-int chaseFrequencyPin=12;  
+int chaseFrequencyPin=11;  
 
 void setup()
 {
@@ -71,6 +73,10 @@ void setup()
 #endif 
 #if defined (MIDI_CONTROL)
   midiSetup();
+#endif
+
+#if defined (OLED_MODE)
+oledSetup(); 
 #endif
 
 #if defined (TIME_SYNC)

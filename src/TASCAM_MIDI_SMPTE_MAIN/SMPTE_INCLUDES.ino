@@ -15,10 +15,10 @@ int tcOffset = -40;
 unsigned int tcOffsetCalc = TC_MAX + tcOffset;
 
 //LTC stuff borrowed from Arduino forum
-#define oneTimeMax          475 // these values are setup for NTSC video
-#define oneTimeMin          300 // PAL would be around 1000 for 0 and 500 for 1
-#define zeroTimeMax         875 // 80bits times 29.97 frames per sec
-#define zeroTimeMin         700 // equals 833 (divide by 8 clock pulses)
+#define oneTimeMax          475 // these values are setup for NTSC video  
+#define oneTimeMin          300 // PAL would be around 1000 for 0 and 500 for 1  
+#define zeroTimeMax         875 // 80bits times 29.97 frames per sec  
+#define zeroTimeMin         700 // equals 833 (divide by 8 clock pulses)  
 
 #define endDataPosition      63
 #define endSyncPosition      77
@@ -50,14 +50,11 @@ enum lastTransport
 char* flagLTC;
 char* flagMTC;
 //MTC stuff from forum
-volatile bool writeLTCOut;
-volatile bool writeMTCOut;
 volatile bool dropFrameFlagLTC;
 volatile bool dropFrameFlagMTC;
 char dfm = 'n';
 char dfl = 'n';
 volatile byte hoursMTC, minutesMTC, secondsMTC, framesMTC;      //hours, minutes, seconds, frame
-volatile byte hoursLTC, minutesLTC, secondsLTC, framesLTC;      //hours, minutes, seconds, frame
 volatile unsigned int MTCWord = 0;
 volatile unsigned int LTCWord = 0;
 unsigned int oldLTCWord = 0;
@@ -71,6 +68,9 @@ volatile byte command, data, index;
 /* ICR interrupt vector */
 ISR(edgeCap)
 {
+  
+volatile byte hoursLTC, minutesLTC, secondsLTC, framesLTC;      //hours, minutes, seconds, frame
+
 #if defined UNO
   //toggleCaptureEdge
   TCCR1B ^= _BV(ICES1);
@@ -83,11 +83,12 @@ ISR(edgeCap)
   bitTime = ICR5;
   //resetTimer1
   TCNT5 = 0;
+  
 #endif
 
   if ((bitTime < oneTimeMin) || (bitTime > zeroTimeMax)) // get rid of anything way outside the norm
   {
-    totalBits = 0;
+      SerialOne.println(bitTime);
   }
   else
   {
@@ -157,7 +158,11 @@ ISR(edgeCap)
       {
         LTCWord = tcOffsetCalc;
       }
-      writeLTCOut = ((LTCWord > 0) && (LTCWord == oldLTCWord + 1 || LTCWord == oldLTCWord) && (LTCWord < tcOffsetCalc));
+      writeLTCOut = (LTCWord > 0);
+     if (writeLTCOut)
+     {
+       oledLTC(LTCWord,LTCWord,secondsLTC,framesLTC);
+     }
       oldLTCWord = LTCWord;
     }
   }
@@ -168,8 +173,6 @@ void smpteSetup()
   MIDI.setHandleTimeCodeQuarterFrame(handleTimeCodeQuarterFrame);
   //pinMode(syncControlPin, INPUT);
   pinMode(icpPin, INPUT);// ICP pin (digital pin 8 on arduino uno) as input
-  pinMode(pushButtonD4, INPUT_PULLUP);
-  pinMode(pushButtonD3, INPUT_PULLUP);
   bitTime = 0;
   totalBits =  0;
   currentBit =  0;
@@ -219,36 +222,42 @@ void handleTimeCodeQuarterFrame(byte data)
 
 void chaseSync()
 {
-  long  wordCompare = 0;
-  unsigned long wordCompareDelay = 0;
-  unsigned long currentTime = 0;
+ volatile  long  wordCompare = 0;
+  volatile unsigned long wordCompareDelay = 0;
+  volatile unsigned long currentTime = 0;
   unsigned long oldTime=0;
-  long framesCompare=0;
+  volatile long framesCompare=0;
+  static long oldFramesCompare;
   if (((MTCWord < tcOffsetCalc) && (!writeLTCOut)))
   {
     SerialOne.println('P');
     playSpeed.play(MOTOR_SPEED_RUN);
-    while (currentTime <=  160)      {
+    while (currentTime <=  150)      {
         currentTime = millis();
     }
+    playSpeed.play(MOTOR_SPEED_RUN);
   }
   
   else if (((MTCWord < tcOffsetCalc) && (writeLTCOut)))
   {
+    
     wordCompare = ((long)LTCWord - (long)MTCWord);
     oldTime = millis();
     
-    if ((wordCompare > 1) )//LTC is leading
+    if ((wordCompare > 2) )//LTC is leading
     {
-      wordCompareDelay = abs(85 * ((wordCompare)));
+      wordCompareDelay = abs(93 * ((wordCompare)));
       SerialOne.println('R');
       while (currentTime <=  oldTime + wordCompareDelay)
       {
         currentTime = millis();
-    }
+        playSpeed.play(MOTOR_SPEED_HIGH);
+      }
+    
+        playSpeed.play(MOTOR_SPEED_RUN);
     }
 
-    else if ((wordCompare < -1))//LTC is following
+    else if ((wordCompare < -2))//LTC is following
     {
       wordCompareDelay =  abs(107 * (wordCompare));
       SerialOne.println('Q');
@@ -256,12 +265,23 @@ void chaseSync()
       while (currentTime <=  oldTime + wordCompareDelay)
       {
         currentTime = millis();
+        playSpeed.play(MOTOR_SPEED_HIGH);
       }
+        playSpeed.play(MOTOR_SPEED_RUN);
     }
-    else if (((wordCompare >= -1) && (wordCompare <= 1)))
+    else if (((wordCompare >= -2) && (wordCompare <= 2)))
     {
-      playSpeed.play(MOTOR_SPEED_RUN - framesCompare);
-    }
+ 
+//      framesCompare = long(320*(((((int)secondsLTC*30)+framesLTC)) - (((int)secondsMTC*30)+framesMTC))); 
+//            while (currentTime <=  oldTime + wordCompareDelay)
+//      {
+//        currentTime = millis();
+//        playSpeed.play(MOTOR_SPEED_RUN + oldFramesCompare);
+//      }
+//      playSpeed.play(MOTOR_SPEED_RUN + oldFramesCompare);
+//      oldFramesCompare=framesCompare;
+//   
+}
   }
 
   else if (MTCWord >= tcOffsetCalc)
