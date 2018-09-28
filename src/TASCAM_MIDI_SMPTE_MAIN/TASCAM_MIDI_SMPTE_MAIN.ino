@@ -30,7 +30,7 @@ Tone playSpeed;
   #define STRIPE_MODE 1 
 #endif 
 
-#if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
+#if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__) 
 //UNO like
 #define UNO 1 //for interrupt stuff
 #define icpPin 8 // ICP input pin on arduino
@@ -41,7 +41,7 @@ Tone playSpeed;
 SoftwareSerialParity SerialOne(6, 7); // RX, TX
 MIDI_CREATE_DEFAULT_INSTANCE();
 
-#elif (__AVR_ATmega2560__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega640__) 
+#elif (__AVR_ATmega2560__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega640__) || defined(__AVR_ATmega328PB__)
 #define MEGA 1 //for interrupt stuff
 #define icpPin  48// ICP input pin on arduino -not needed as handled by interrupt
 #define EVEN SERIAL_8E1

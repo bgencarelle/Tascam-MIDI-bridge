@@ -3,7 +3,7 @@
 #if defined UNO
 #define edgeCap TIMER1_CAPT_vect
 #elif defined MEGA
-#define edgeCap TIMER5_CAPT_vect
+#define edgeCap TIMER4_CAPT_vect
 #endif
 
 #if (defined (TAS_644_HIGH_SPEED) || defined(TAS_688))
@@ -79,10 +79,10 @@ volatile byte hoursLTC, minutesLTC, secondsLTC, framesLTC;      //hours, minutes
   TCNT1 = 0;
 #elif defined MEGA
   //toggleCaptureEdge
-  TCCR5B ^= _BV(ICES5);
-  bitTime = ICR5;
+  TCCR4B ^= _BV(ICES4);
+  bitTime = ICR4;
   //resetTimer1
-  TCNT5 = 0;
+  TCNT4 = 0;
   
 #endif
 
@@ -186,12 +186,12 @@ void smpteSetup()
   TIMSK1 = B00100000; // ICIE1 enable the icp
   TCNT1 = 0; // clear timer1
 #elif defined MEGA
-  attachInterrupt(1, TIMER5_CAPT_vect, CHANGE);
-  TCCR5A = B00000000; // clear all
-  TCCR5B = B11000010; // ICNC1 noise reduction + ICES1 start on rising edge + CS11 divide by 8
-  TCCR5C = B00000000; // clear all
-  TIMSK5 = B00100000; // ICIE1 enable the icp
-  TCNT5 = 0; // clear timer1
+  attachInterrupt(1, TIMER4_CAPT_vect, CHANGE);
+  TCCR4A = B00000000; // clear all
+  TCCR4B = B11000010; // ICNC1 noise reduction + ICES1 start on rising edge + CS11 divide by 8
+  TCCR4C = B00000000; // clear all
+  TIMSK4 = B00100000; // ICIE1 enable the icp
+  TCNT4 = 0; // clear timer1
 #endif
 }
 
